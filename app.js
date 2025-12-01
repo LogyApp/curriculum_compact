@@ -1,4 +1,4 @@
-const API_URL = "/api/config";
+const API_URL = "https://curriculum-compact-594761951101.europe-west1.run.app/api/config";
 
 // ==============================
 // Cargar Tipo de Identificación
