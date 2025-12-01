@@ -1,0 +1,92 @@
+ENDPOINTS - BACKEND HV LOGYSER
+CONFIGURATION ENDPOINTS
+1. Get Identification Types
+Method: GET
+
+URL: /api/config/tipo-identificacion
+
+Description: Get available identification types
+
+2. Get Departments
+Method: GET
+
+URL: /api/config/departamentos
+
+Description: Get all Colombian departments
+
+3. Get Cities by Department
+Method: GET
+
+URL: /api/config/ciudades?departamento={department}
+
+Parameters: department (required)
+
+Description: Get cities for a specific department
+
+4. Get EPS
+Method: GET
+
+URL: /api/config/eps
+
+Description: Get available EPS
+
+5. Get Pension Funds
+Method: GET
+
+URL: /api/config/pension
+
+Description: Get available pension funds
+
+APPLICANT ENDPOINTS
+6. Get Applicant by ID
+Method: GET
+
+URL: /api/aspirante?identificacion={id}
+
+Parameters: identificacion (required)
+
+Description: Check if applicant exists and get all data
+
+7. Upload Profile Photo
+Method: POST
+
+URL: /api/hv/upload-photo
+
+Content-Type: multipart/form-data
+
+Body: identificacion (string), photo (file - max 5MB)
+
+Description: Upload photo to Google Cloud Storage
+
+8. Complete CV Registration
+Method: POST
+
+URL: /api/hv/registrar
+
+Content-Type: application/json
+
+Description: Register or update complete applicant data including personal info, education, work experience, family, references, emergency contact, goals, and security questionnaire
+
+EMAIL ENDPOINTS
+9. Email Routes
+Base URL: /api/correo
+
+Description: Email-related routes (defined in separate module)
+
+SERVER CONFIGURATION
+Port: 8080 (configurable via PORT environment variable)
+
+Database: MySQL on port 3307
+
+Storage: Google Cloud Storage (bucket: hojas_vida_logyser)
+
+CORS: Enabled for all origins
+
+IMPORTANT NOTES
+No authentication required in this version
+
+File upload limit: 5MB for photos
+
+PDF is automatically generated after successful registration
+
+Existing applicants are updated with new data
