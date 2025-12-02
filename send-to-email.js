@@ -62,7 +62,7 @@ Revisa en LogyApp para más detalles.
         }
         .pdf-button:hover {
           background: linear-gradient(135deg, #e64a19 0%, #ff5722 100%);
-          foreground: #f9f9f9;
+          foreground: #fff3e0;
           transform: translateY(-2px);
           box-shadow: 0 6px 12px rgba(241, 83, 0, 0.3);
         }
