@@ -1,24 +1,23 @@
 import fs from "fs/promises";
 import path from "path";
 import puppeteer from "puppeteer";
-import { Storage } from "@google-cloud/storage";
 import { fileURLToPath } from "url";
 
-const GCS_BUCKET = process.env.GCS_BUCKET || "hojas_vida_logyser";
-const LOGO_GCS_BUCKET = process.env.LOGO_GCS_BUCKET || "logyser-public"; // bucket donde está el logo
-const LOGO_GCS_PATH = process.env.LOGO_GCS_PATH || "logo/logyser_horizontal.png"; // ruta dentro del bucket
-const storage = new Storage({
-  projectId: process.env.GOOGLE_CLOUD_PROJECT || "eternal-brand-454501-i8",
-});
-
-const bucket = storage.bucket(GCS_BUCKET);
-
-// Resolve template path relative to this module (robusto en dev/contener)
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const TEMPLATE_PATH = path.join(__dirname, "templates", "cv_template.html");
 
-// helper: load template file and replace placeholders
+// ==========================================
+//  CONFIGURACIÓN
+// ==========================================
+
+// IMPORTANTE: Usar TEMPLATE_PATH constante, no hardcodear
+const TEMPLATE_PATH = path.join(__dirname, "templates", "cv_template.html");
+const ALT_TEMPLATE_PATH = path.join(__dirname, "templates", "hoja-vida-template.html");
+
+// ==========================================
+//  FUNCIONES AUXILIARES
+// ==========================================
+
 async function renderHtmlFromTemplate(templatePath, data) {
   let html = await fs.readFile(templatePath, "utf8");
   // Simple placeholder replacement: {{KEY}}
@@ -29,64 +28,50 @@ async function renderHtmlFromTemplate(templatePath, data) {
   return html;
 }
 
-// helper: try to download logo from GCS and return data URL, otherwise return public URL fallback
-async function getLogoDataUrl() {
-  try {
-    const logoBucket = storage.bucket(LOGO_GCS_BUCKET);
-    const logoFile = logoBucket.file(LOGO_GCS_PATH);
-
-    // comprobar existencia
-    const [exists] = await logoFile.exists();
-    if (exists) {
-      const [buffer] = await logoFile.download();
-      // intentar metadata para contentType
-      let contentType = "image/png";
-      try {
-        const [meta] = await logoFile.getMetadata();
-        if (meta && meta.contentType) contentType = meta.contentType;
-      } catch (errMeta) {
-        // ignore
-      }
-      const base64 = buffer.toString("base64");
-      return `data:${contentType};base64,${base64}`;
-    }
-  } catch (err) {
-    console.warn("No se pudo descargar logo desde GCS:", err && err.message ? err.message : err);
-  }
-
-  // fallback público
-  return `https://storage.googleapis.com/${LOGO_GCS_BUCKET}/${LOGO_GCS_PATH}`;
-}
-
 async function htmlToPdfBuffer(html) {
+  console.log("🚀 Iniciando Puppeteer...");
   const browser = await puppeteer.launch({
-    args: ["--no-sandbox", "--disable-setuid-sandbox"]
+    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    headless: "new"  // Usar nuevo headless mode
   });
+
   try {
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "networkidle0" });
+
     const pdfBuffer = await page.pdf({
       format: "A4",
       printBackground: true,
-      margin: { top: "12mm", bottom: "12mm", left: "12mm", right: "12mm" }
+      margin: {
+        top: "12mm",
+        bottom: "12mm",
+        left: "12mm",
+        right: "12mm"
+      }
     });
+
     return pdfBuffer;
   } finally {
     await browser.close();
+    console.log("✅ Puppeteer cerrado");
   }
 }
+
+// ==========================================
+//  FUNCIÓN PRINCIPAL - CORREGIDA
+// ==========================================
 
 export async function generateAndUploadPdf({
   identificacion,
   dataObjects = {},
   destNamePrefix = "cv",
-  bucket,  // ← ¡NUEVO PARÁMETRO REQUERIDO!
-  bucketName  // ← ¡NUEVO PARÁMETRO REQUERIDO!
+  bucket,
+  bucketName
 }) {
   console.log(`📄 [PDF Generator] Iniciando para: ${identificacion}`);
 
   try {
-    // VALIDACIONES CRÍTICAS
+    // ========== VALIDACIONES ==========
     if (!bucket) {
       throw new Error("❌ 'bucket' es requerido. Pásalo desde server.js");
     }
@@ -96,41 +81,55 @@ export async function generateAndUploadPdf({
     }
 
     console.log(`🏢 Bucket recibido: ${bucketName}`);
-    console.log(`📦 Bucket object: ${bucket ? 'OK' : 'NULL'}`);
 
+    // ========== ENCONTRAR PLANTILLA ==========
+    let templatePath = null;
+
+    // Primero intentar con cv_template.html
+    if (await fileExists(TEMPLATE_PATH)) {
+      templatePath = TEMPLATE_PATH;
+      console.log(`📋 Plantilla encontrada: cv_template.html`);
+    }
+    // Si no existe, intentar con hoja-vida-template.html
+    else if (await fileExists(ALT_TEMPLATE_PATH)) {
+      templatePath = ALT_TEMPLATE_PATH;
+      console.log(`📋 Plantilla alternativa encontrada: hoja-vida-template.html`);
+    }
+    // Si ninguna existe, ERROR
+    else {
+      throw new Error(`❌ No se encontró ninguna plantilla. Buscada en:
+        1. ${TEMPLATE_PATH}
+        2. ${ALT_TEMPLATE_PATH}`);
+    }
+
+    // ========== PREPARAR DATOS ==========
     // Asegurar LOGO_URL
     if (!dataObjects.LOGO_URL) {
       dataObjects.LOGO_URL = "https://storage.googleapis.com/logyser-recibo-public/logo.png";
     }
 
-    // 1. Cargar y renderizar plantilla
-    const templatePath = path.join(__dirname, 'templates', 'hoja-vida-template.html');
-
-    if (!fs.existsSync(templatePath)) {
-      throw new Error(`❌ Plantilla no encontrada: ${templatePath}`);
-    }
-
-    console.log(`📋 Usando plantilla: ${templatePath}`);
+    // ========== RENDERIZAR HTML ==========
+    console.log(`🔄 Renderizando plantilla...`);
     const html = await renderHtmlFromTemplate(templatePath, dataObjects);
+    console.log(`✅ Plantilla renderizada`);
 
-    // 2. Generar PDF
-    console.log("🖨️ Generando PDF con Puppeteer...");
+    // ========== GENERAR PDF ==========
+    console.log("🖨️ Generando PDF...");
     const pdfBuffer = await htmlToPdfBuffer(html);
     console.log(`✅ PDF generado: ${pdfBuffer.length} bytes`);
 
-    // 3. Nombre del archivo (mismo formato que ya funciona)
+    // ========== NOMBRE DEL ARCHIVO ==========
     const timestamp = Date.now();
     const destName = `${identificacion}/${destNamePrefix}_${timestamp}.pdf`;
-
     console.log(`📤 Subiendo a GCS: ${destName}`);
 
-    // 4. Subir a GCS
+    // ========== SUBIR A GCS ==========
     const file = bucket.file(destName);
 
     await file.save(pdfBuffer, {
       contentType: "application/pdf",
       metadata: {
-        cacheControl: 'public, max-age=31536000', // 1 año
+        cacheControl: 'public, max-age=31536000',
         contentDisposition: `inline; filename="CV_${identificacion}.pdf"`
       },
       resumable: false
@@ -138,51 +137,89 @@ export async function generateAndUploadPdf({
 
     console.log(`✅ PDF subido exitosamente: ${destName}`);
 
-    // 5. Intentar hacer público (opcional pero útil)
+    // ========== HACER PÚBLICO ==========
     try {
       await file.makePublic();
-      console.log(`🌍 Archivo hecho público: ${destName}`);
+      console.log(`🌍 Archivo hecho público`);
     } catch (publicError) {
       console.warn(`⚠️ No se pudo hacer público: ${publicError.message}`);
-      // No es crítico, continuamos
+      // No crítico
     }
 
-    // 6. Generar URL (SIEMPRE usar URL pública como fallback seguro)
+    // ========== GENERAR URL PÚBLICA ==========
     const publicUrl = `https://storage.googleapis.com/${bucketName}/${destName}`;
-    let finalUrl = publicUrl;
 
-    // Intentar signed URL como opción premium
+    console.log(`🔗 URL pública generada: ${publicUrl}`);
+
+    // ========== INTENTAR SIGNED URL ==========
+    let signedUrl = null;
     try {
-      const expiresMs = parseInt(process.env.SIGNED_URL_EXPIRES_MS || String(7 * 24 * 60 * 60 * 1000), 10);
-      const expiresAt = Date.now() + expiresMs;
+      const expiresMs = parseInt(
+        process.env.SIGNED_URL_EXPIRES_MS ||
+        String(7 * 24 * 60 * 60 * 1000), // 7 días
+        10
+      );
 
-      const [signedUrl] = await file.getSignedUrl({
+      const expiresAt = Date.now() + expiresMs;
+      const [url] = await file.getSignedUrl({
         action: "read",
         expires: expiresAt,
         version: 'v4'
       });
 
-      if (signedUrl) {
-        finalUrl = signedUrl;
-        console.log(`🔐 Signed URL generada (expira en ${expiresMs / 1000 / 60 / 60 / 24} días)`);
-      }
+      signedUrl = url;
+      console.log(`🔐 Signed URL generada`);
     } catch (signedError) {
-      console.warn(`⚠️ Signed URL falló, usando URL pública: ${signedError.message}`);
-      // Usamos publicUrl como fallback
+      console.warn(`⚠️ Signed URL falló: ${signedError.message}`);
     }
 
-    console.log(`🔗 URL final: ${finalUrl}`);
-
+    // ========== RETORNAR RESULTADO ==========
     return {
       destName,
-      signedUrl: finalUrl,
-      publicUrl, // URL pública directa (siempre funciona)
+      publicUrl,      // URL pública (SIEMPRE funciona)
+      signedUrl,      // Signed URL (opcional)
       size: pdfBuffer.length,
       timestamp
     };
 
   } catch (error) {
-    console.error(`❌ [PDF Generator] Error para ${identificacion}:`, error);
+    console.error(`❌ [PDF Generator] Error para ${identificacion}:`, error.message);
+    console.error("📋 Stack trace:", error.stack);
     throw error;
   }
+}
+
+// ==========================================
+//  FUNCIONES AUXILIARES ADICIONALES
+// ==========================================
+
+async function fileExists(filePath) {
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Función para debug: verificar plantillas disponibles
+export async function checkTemplates() {
+  const templates = [
+    { name: "cv_template.html", path: TEMPLATE_PATH },
+    { name: "hoja-vida-template.html", path: ALT_TEMPLATE_PATH }
+  ];
+
+  const results = [];
+
+  for (const template of templates) {
+    const exists = await fileExists(template.path);
+    results.push({
+      name: template.name,
+      path: template.path,
+      exists,
+      size: exists ? (await fs.stat(template.path)).size : 0
+    });
+  }
+
+  return results;
 }
