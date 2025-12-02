@@ -463,74 +463,6 @@ app.get("/api/config/pension", async (req, res) => {
 
 app.use(express.static(__dirname));
 
-// ==========================================
-//  DEBUG: Verificar datos de PDF en DB
-// ==========================================
-app.get("/api/debug/pdf-db/:identificacion", async (req, res) => {
-  const { identificacion } = req.params;
-
-  try {
-    const [rows] = await pool.query(
-      `SELECT 
-        identificacion,
-        pdf_gcs_path,
-        pdf_public_url,
-        pdf_signed_url,
-        foto_public_url,
-        fecha_registro
-      FROM Dynamic_hv_aspirante 
-      WHERE identificacion = ?`,
-      [identificacion]
-    );
-
-    if (rows.length === 0) {
-      return res.json({
-        existe: false,
-        message: "Aspirante no encontrado en DB"
-      });
-    }
-
-    const aspirante = rows[0];
-
-    // Verificar si el archivo existe en GCS
-    let gcsExists = false;
-    let gcsError = null;
-
-    if (aspirante.pdf_gcs_path && bucket) {
-      try {
-        const file = bucket.file(aspirante.pdf_gcs_path);
-        const [exists] = await file.exists();
-        gcsExists = exists;
-
-        if (exists) {
-          // Intentar generar URL pública
-          const publicUrl = `https://storage.googleapis.com/${GCS_BUCKET}/${aspirante.pdf_gcs_path}`;
-          aspirante.calculated_public_url = publicUrl;
-        }
-      } catch (error) {
-        gcsError = error.message;
-      }
-    }
-
-    res.json({
-      existe: true,
-      aspirante,
-      gcs: {
-        bucket: GCS_BUCKET,
-        configured: !!bucket,
-        file_exists: gcsExists,
-        error: gcsError
-      },
-      recomendacion: aspirante.pdf_public_url ?
-        "✅ Usa pdf_public_url de la DB en el correo" :
-        "❌ No hay URL en DB, verifica generación de PDF"
-    });
-
-  } catch (error) {
-    console.error("Debug error:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
 
 app.get("/api/aspirante", async (req, res) => {
   const identificacion = req.query.identificacion;
@@ -784,8 +716,6 @@ app.post("/api/hv/registrar", async (req, res) => {
           zapatos_talla = ?,
           foto_gcs_path = ?,
           foto_public_url = ?,
-          pdf_gcs_path = NULL,   -- Limpiar ruta anterior del PDF
-          pdf_public_url = NULL, -- Limpiar URL anterior del PDF
           origen_registro = ?,
           medio_reclutamiento = ?,
           recomendador_aspirante = ?,
@@ -1230,7 +1160,7 @@ app.post("/api/hv/registrar", async (req, res) => {
 
     // ========== GENERAR Y SUBIR PDF ==========
     let pdfResult = null;
-    let pdfGenerado = false;
+    let pdfUrl = null;
 
     try {
       console.log(`🔄 Generando PDF para: ${identificacion}`);
@@ -1242,116 +1172,67 @@ app.post("/api/hv/registrar", async (req, res) => {
         pdfResult = await generateAndUploadPdf({
           identificacion,
           dataObjects: aspiranteData,
-          bucket,
-          bucketName: GCS_BUCKET
+          bucket,          // ← Pasar el bucket desde server.js
+          bucketName: GCS_BUCKET  // ← Pasar el nombre del bucket
         });
+
+        pdfUrl = pdfResult.publicUrl;
 
         console.log(`✅ PDF generado exitosamente:`);
         console.log(`   📁 Ruta: ${pdfResult.destName}`);
-        console.log(`   🔗 URL pública: ${pdfResult.publicUrl}`);
+        console.log(`   🔗 URL: ${pdfUrl}`);
 
-        // Guardar en DB - asegurar que guardamos la URL pública
+        // Guardar en DB
         await conn.query(
           `UPDATE Dynamic_hv_aspirante SET 
             pdf_gcs_path = ?,
             pdf_public_url = ?
           WHERE identificacion = ?`,
-          [pdfResult.destName, pdfResult.publicUrl, identificacion]
+          [pdfResult.destName, pdfUrl, identificacion]
         );
-
-        pdfGenerado = true;
-        console.log(`💾 PDF guardado en DB: ${pdfResult.publicUrl}`);
       }
     } catch (pdfError) {
       console.error(`❌ Error generando PDF: ${pdfError.message}`);
-      console.error(`📋 Stack trace: ${pdfError.stack}`);
-      pdfGenerado = false;
+      pdfUrl = null;
     }
 
     await conn.commit();
-    console.log(`✅ Transacción completada para aspirante: ${identificacion}`);
 
-    // ========== ENVIAR CORREO CON URL DESDE LA DB ==========
-    try {
-      // Obtener la URL ACTUAL de la DB (asegura que es la correcta)
-      const [dbAspirante] = await pool.query(
-        `SELECT pdf_public_url, pdf_gcs_path FROM Dynamic_hv_aspirante WHERE identificacion = ?`,
-        [identificacion]
-      );
-
-      let urlParaCorreo = null;
-      let fuenteUrl = "no_disponible";
-
-      if (dbAspirante.length > 0) {
-        const aspiranteDB = dbAspirante[0];
-
-        // PRIORIDAD 1: Usar pdf_public_url de la DB
-        if (aspiranteDB.pdf_public_url) {
-          urlParaCorreo = aspiranteDB.pdf_public_url;
-          fuenteUrl = "db_public_url";
-          console.log(`✅ URL para correo (desde DB): ${urlParaCorreo.substring(0, 100)}...`);
-        }
-        // PRIORIDAD 2: Si no hay URL en DB pero hay ruta, construirla
-        else if (aspiranteDB.pdf_gcs_path) {
-          urlParaCorreo = `https://storage.googleapis.com/${GCS_BUCKET}/${aspiranteDB.pdf_gcs_path}`;
-          fuenteUrl = "construida_desde_ruta";
-          console.log(`🔗 URL construida desde ruta: ${urlParaCorreo}`);
-        }
-        // PRIORIDAD 3: Usar la URL recién generada
-        else if (pdfResult && pdfResult.publicUrl) {
-          urlParaCorreo = pdfResult.publicUrl;
-          fuenteUrl = "recien_generada";
-          console.log(`🔄 URL desde generación reciente: ${pdfResult.publicUrl}`);
-        }
-      }
-
-      // Enviar correo (con o sin URL)
-      import('./send-to-email.js').then(async (module) => {
-        await module.default({
-          nombre: `${primer_nombre} ${primer_apellido}`.trim(),
-          identificacion,
-          correo: correo_electronico,
-          telefono,
-          pdf_url: urlParaCorreo,
-          timestamp: new Date().toLocaleString('es-CO')
+    // ========== ENVIAR CORREO ==========
+    if (pdfUrl) {
+      try {
+        // Importar dinámicamente para evitar dependencia circular
+        import('./send-to-email.js').then(async (module) => {
+          await module.default({
+            nombre: `${primer_nombre} ${primer_apellido}`.trim(),
+            identificacion,
+            correo: correo_electronico,
+            telefono,
+            pdf_url: pdfUrl,
+            timestamp: new Date().toLocaleString('es-CO')
+          });
+          console.log("✅ Correo enviado exitosamente");
+        }).catch(emailError => {
+          console.error("⚠️ Error enviando correo:", emailError.message);
         });
-
-        console.log(`📧 Correo enviado ${urlParaCorreo ? 'con' : 'sin'} PDF`);
-        console.log(`   Fuente URL: ${fuenteUrl}`);
-
-        if (urlParaCorreo) {
-          console.log(`   URL enviada: ${urlParaCorreo.substring(0, 100)}...`);
-        }
-
-      }).catch(emailError => {
-        console.error("⚠️ Error enviando correo:", emailError.message);
-      });
-
-    } catch (mailError) {
-      console.error("⚠️ Error en envío de correo:", mailError);
+      } catch (mailError) {
+        console.error("⚠️ Error en envío de correo:", mailError);
+      }
+    } else {
+      console.log("⚠️ No hay URL de PDF, omitiendo envío de correo");
     }
 
-    // ========== RESPUESTA AL CLIENTE ==========
     res.json({
       ok: true,
       message: "Hoja de vida registrada correctamente",
       id_aspirante: idAspirante,
-      pdf_generado: pdfGenerado,
-      pdf_url: pdfResult ? pdfResult.publicUrl : null,
-      nota: "El correo se ha enviado con la URL del PDF desde la base de datos"
+      pdf_generado: !!pdfUrl,
+      pdf_url: pdfUrl || null
     });
 
   } catch (error) {
     console.error("❌ Error registrando HV:", error);
-    console.error("📋 Stack trace:", error.stack);
-
-    try {
-      await conn.rollback();
-      console.log("↩️ Transacción revertida");
-    } catch (rollbackError) {
-      console.error("❌ Error en rollback:", rollbackError);
-    }
-
+    await conn.rollback();
     res.status(500).json({
       ok: false,
       error: "Error registrando hoja de vida",
@@ -1359,7 +1240,6 @@ app.post("/api/hv/registrar", async (req, res) => {
     });
   } finally {
     conn.release();
-    console.log("🔓 Conexión liberada");
   }
 });
 
