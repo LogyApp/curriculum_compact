@@ -4,7 +4,8 @@
 //  Listo para Cloud Run
 // ==========================================================
 import path from 'path';
-import { generateAndUploadPdf } from "./pdf-generator.js"; // agrega import
+import { generateAndUploadPdf } from "./pdf-generator.js";
+import fs from 'fs'; // <-- AÑADE ESTO
 
 import multer from "multer";
 import { Storage } from "@google-cloud/storage";
@@ -25,16 +26,6 @@ import correoAspiranteRoutes from "./router/correoAspirante.js";
 // === Servir frontend ===
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-// ESTABLECER LA VARIABLE DE ENTORNO PRIMERO
-process.env.GOOGLE_APPLICATION_CREDENTIALS = path.join(__dirname, 'json-key.json');
-console.log('Ruta credenciales:', process.env.GOOGLE_APPLICATION_CREDENTIALS);
-
-// Luego crea el cliente de Storage UNA SOLA VEZ
-const storage = new Storage({
-  keyFilename: path.join(__dirname, 'json-key.json')
-  // No necesitas projectId aquí si está en el archivo json
-});
 
 // ==========================================
 //  CONEXIÓN A MYSQL
@@ -66,16 +57,84 @@ function escapeHtml(str = "") {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 }
+
 // Multer: almacenar en memoria para subir directamente a GCS
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 } // límite 5MB (ajusta si quieres)
+  limits: { fileSize: 5 * 1024 * 1024 } // límite 5MB
 });
 
-// Google Cloud Storage
-const GCS_BUCKET = process.env.GCS_BUCKET || "hojas_vida_logyser";
-const storageGcs = new Storage(); // usará credenciales por env/Workload Identity en GCP
-const bucket = storageGcs.bucket(GCS_BUCKET);
+// Determinar si estamos en Cloud Run o local
+const isCloudRun = process.env.K_SERVICE || process.env.K_REVISION;
+
+// Configuración de Storage
+let storageGcs;
+let GCS_BUCKET;
+let bucket = null;
+
+try {
+  if (isCloudRun) {
+    // En Cloud Run - usar credenciales automáticas
+    console.log("Usando credenciales automáticas de Cloud Run");
+    storageGcs = new Storage();
+    GCS_BUCKET = process.env.GCS_BUCKET || "hojas_vida_logyser";
+  } else {
+    // En local - usar archivo de credenciales
+    console.log("Modo desarrollo local");
+
+    // PRIMERO intentar con variable de entorno
+    if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+      console.log("Usando credenciales de variable de entorno");
+      storageGcs = new Storage();
+    }
+    // SEGUNDO intentar con archivo json-key.json
+    else {
+      const keyFilename = path.join(__dirname, 'json-key.json');
+      if (fs.existsSync(keyFilename)) {
+        console.log(`Usando credenciales desde archivo: ${keyFilename}`);
+        storageGcs = new Storage({
+          keyFilename: keyFilename
+        });
+      } else {
+        console.warn("⚠️  Archivo json-key.json no encontrado y GOOGLE_APPLICATION_CREDENTIALS no definida");
+        console.warn("⚠️  Las funciones de subida de archivos no estarán disponibles en desarrollo local");
+        console.warn("⚠️  Para desarrollo, crea json-key.json o define la variable de entorno");
+      }
+    }
+
+    GCS_BUCKET = process.env.GCS_BUCKET || "hojas_vida_logyser";
+  }
+
+  // Solo crear bucket si tenemos storage configurado
+  if (storageGcs) {
+    bucket = storageGcs.bucket(GCS_BUCKET);
+    console.log(`✅ Bucket configurado: ${GCS_BUCKET}`);
+
+    // Verificar que el bucket existe
+    try {
+      const [exists] = await bucket.exists();
+      if (exists) {
+        console.log(`✅ Bucket ${GCS_BUCKET} accesible`);
+      } else {
+        console.error(`❌ Bucket ${GCS_BUCKET} no existe o no es accesible`);
+        console.error(`   Verifica que el bucket exista y el service account tenga permisos`);
+        bucket = null; // No podemos usar un bucket que no existe
+      }
+    } catch (bucketError) {
+      console.error(`❌ Error verificando bucket ${GCS_BUCKET}:`, bucketError.message);
+      bucket = null;
+    }
+  } else {
+    console.warn("⚠️  Storage GCS no configurado - funcionalidades de archivo deshabilitadas");
+  }
+
+} catch (configError) {
+  console.error("❌ Error configurando Google Cloud Storage:", configError.message);
+  bucket = null;
+}
+
+console.log(`🌍 Entorno: ${isCloudRun ? 'Cloud Run' : 'Local'}`);
+console.log(`📦 Bucket disponible: ${bucket ? 'Sí' : 'No'}`);
 
 app.get('/connection', (req, res) => {
   const html = `
