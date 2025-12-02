@@ -1186,6 +1186,36 @@ app.post("/api/hv/registrar", async (req, res) => {
         `UPDATE Dynamic_hv_aspirante SET pdf_gcs_path = ?, pdf_public_url = ? WHERE identificacion = ?`,
         [destName, signedUrl, identificacion]
       );
+      // EN tu endpoint /api/hv/registrar, después de generar el PDF:
+      try {
+        const { destName, signedUrl } = await generateAndUploadPdf({ identificacion, dataObjects: aspiranteData });
+
+        // Obtener URL pública (signed URL o URL pública de fallback)
+        let pdfPublicUrl = signedUrl;
+
+        if (!pdfPublicUrl && destName) {
+          // Fallback a URL pública
+          pdfPublicUrl = `https://storage.googleapis.com/${GCS_BUCKET}/${destName}`;
+        }
+
+        // Guardar ambas referencias en DB
+        await conn.query(
+          `UPDATE Dynamic_hv_aspirante SET 
+      pdf_gcs_path = ?, 
+      pdf_public_url = ?,
+      pdf_signed_url = ?
+    WHERE identificacion = ?`,
+          [destName, pdfPublicUrl, signedUrl, identificacion]
+        );
+
+        // Guardar la URL para enviar en el correo
+        aspiranteData.pdf_public_url = pdfPublicUrl;
+
+      } catch (err) {
+        console.error("Error generando PDF:", err);
+        aspiranteData.pdf_public_url = null;
+      }
+
     } catch (err) {
       console.error("Error generando PDF:", err);
       // no fallo crítico: puedes continuar; opcional: notificar
