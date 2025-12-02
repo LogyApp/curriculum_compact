@@ -3,6 +3,7 @@
 //  Node.js + Express + MySQL (mysql2/promise)
 //  Listo para Cloud Run
 // ==========================================================
+import path from 'path';
 import { generateAndUploadPdf } from "./pdf-generator.js"; // agrega import
 
 import multer from "multer";
@@ -12,7 +13,6 @@ import express from "express";
 import cors from "cors";
 import mysql from "mysql2/promise";
 
-import path from "path";
 import { fileURLToPath } from "url";
 
 const app = express();
@@ -26,6 +26,15 @@ import correoAspiranteRoutes from "./router/correoAspirante.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// ESTABLECER LA VARIABLE DE ENTORNO PRIMERO
+process.env.GOOGLE_APPLICATION_CREDENTIALS = path.join(__dirname, 'json-key.json');
+console.log('Ruta credenciales:', process.env.GOOGLE_APPLICATION_CREDENTIALS);
+
+// Luego crea el cliente de Storage UNA SOLA VEZ
+const storage = new Storage({
+  keyFilename: path.join(__dirname, 'json-key.json')
+  // No necesitas projectId aquí si está en el archivo json
+});
 
 // ==========================================
 //  CONEXIÓN A MYSQL
@@ -919,7 +928,7 @@ app.use("/api/correo", correoAspiranteRoutes);
 
 
 // --- Inicio del servidor ---
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 5500;
 
 app.listen(PORT, () => {
   console.log(`HV server listening on port ${PORT}`);

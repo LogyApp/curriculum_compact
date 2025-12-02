@@ -14,7 +14,7 @@ async function enviarCorreoAspirante({
     secure: false,
     auth: {
       user: 'logyser.noreply@gmail.com',
-      pass: 'dxsw ibpr qsox muvk'
+      pass: 'iroa eygz smjw wluh'
     }
   });
 
@@ -35,7 +35,7 @@ Revisa en LogyApp para más detalles.
 
   const html = `
     <div style="font-family: Arial, sans-serif; line-height: 1.5; padding: 15px;">
-      <h2 style="color: #f57c00;">Nuevo aspirante registrado</h2>
+      <h2 style="color: #000B59;">Nuevo aspirante registrado</h2>
 
       <p><strong>Nombre:</strong> ${nombre}</p>
       <p><strong>Identificación:</strong> ${identificacion}</p>
@@ -49,7 +49,7 @@ Revisa en LogyApp para más detalles.
       <a href="${pdf_url}"
         style="
           display: inline-block;
-          background-color: #f57c00;
+          background-color: #F15300;
           color: white;
           padding: 10px 18px;
           font-size: 15px;
