@@ -77,7 +77,7 @@ const GCS_BUCKET = process.env.GCS_BUCKET || "hojas_vida_logyser";
 const storageGcs = new Storage(); // usará credenciales por env/Workload Identity en GCP
 const bucket = storageGcs.bucket(GCS_BUCKET);
 
-app.get('/', (req, res) => {
+app.get('/connection', (req, res) => {
   const html = `
   <!DOCTYPE html>
   <html lang="es">
