@@ -76,6 +76,232 @@ const upload = multer({
 const GCS_BUCKET = process.env.GCS_BUCKET || "hojas_vida_logyser";
 const storageGcs = new Storage(); // usará credenciales por env/Workload Identity en GCP
 const bucket = storageGcs.bucket(GCS_BUCKET);
+
+app.get('/', (req, res) => {
+  const html = `
+  <!DOCTYPE html>
+  <html lang="es">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Curriculum Vitae</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      
+      body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+      
+      .container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border-radius: 24px;
+        padding: 60px 40px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+        text-align: center;
+        max-width: 600px;
+        width: 100%;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+      }
+      
+      .status-indicator {
+        display: inline-flex;
+        align-items: center;
+        margin-bottom: 30px;
+        padding: 8px 16px;
+        background: #10b981;
+        color: white;
+        border-radius: 20px;
+        font-size: 14px;
+        font-weight: 500;
+        animation: pulse 2s infinite;
+      }
+      
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        background: white;
+        border-radius: 50%;
+        margin-right: 8px;
+        animation: blink 1.5s infinite;
+      }
+      
+      h1 {
+        color: #1f2937;
+        font-size: 36px;
+        font-weight: 700;
+        margin-bottom: 15px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+      
+      .subtitle {
+        color: #6b7280;
+        font-size: 18px;
+        margin-bottom: 40px;
+        line-height: 1.6;
+      }
+      
+      .info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 20px;
+        margin: 40px 0;
+      }
+      
+      .info-card {
+        background: #f8fafc;
+        padding: 20px;
+        border-radius: 12px;
+        text-align: left;
+        border-left: 4px solid #667eea;
+      }
+      
+      .info-card h3 {
+        color: #374151;
+        font-size: 16px;
+        font-weight: 600;
+        margin-bottom: 8px;
+      }
+      
+      .info-card p {
+        color: #6b7280;
+        font-size: 14px;
+      }
+      
+      .api-endpoints {
+        background: #f3f4f6;
+        padding: 20px;
+        border-radius: 12px;
+        margin-top: 30px;
+      }
+      
+      .endpoint {
+        display: flex;
+        align-items: center;
+        padding: 12px;
+        background: white;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        border: 1px solid #e5e7eb;
+      }
+      
+      .method {
+        padding: 4px 12px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 600;
+        margin-right: 12px;
+      }
+      
+      .method.get {
+        background: #10b981;
+        color: white;
+      }
+      
+      .method.post {
+        background: #f59e0b;
+        color: white;
+      }
+      
+      .method.put {
+        background: #3b82f6;
+        color: white;
+      }
+      
+      .method.delete {
+        background: #ef4444;
+        color: white;
+      }
+      
+      .endpoint-path {
+        font-family: 'Monaco', 'Courier New', monospace;
+        color: #374151;
+        font-size: 14px;
+      }
+      
+      @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.8; }
+        100% { opacity: 1; }
+      }
+      
+      @keyframes blink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+      }
+      
+      .timestamp {
+        color: #9ca3af;
+        font-size: 12px;
+        margin-top: 30px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="status-indicator">
+        <span class="status-dot"></span>
+        SERVER ACTIVE
+      </div>
+      
+      <h1>API Curriculum Vitae</h1>
+      <p class="subtitle">
+        Servicio backend para generación y gestión de currículums vitae
+      </p>
+      
+      <div class="info-grid">
+        <div class="info-card">
+          <h3>📊 Estado del Sistema</h3>
+          <p>Todas las funciones operativas</p>
+        </div>
+        <div class="info-card">
+          <h3>⚡ Rendimiento</h3>
+          <p>Respuesta en tiempo real</p>
+        </div>
+      </div>
+      
+      <div class="api-endpoints">
+        <h3 style="text-align: left; color: #374151; margin-bottom: 15px;">📡 Endpoints Disponibles</h3>
+        <div class="endpoint">
+          <span class="method get">GET</span>
+          <span class="endpoint-path">/api/health</span>
+        </div>
+        <div class="endpoint">
+          <span class="method post">POST</span>
+          <span class="endpoint-path">/api/generate-pdf</span>
+        </div>
+        <div class="endpoint">
+          <span class="method post">POST</span>
+          <span class="endpoint-path">/api/send-email</span>
+        </div>
+      </div>
+      
+      <div class="timestamp">
+        Última actualización: ${new Date().toLocaleString('es-ES')}
+      </div>
+    </div>
+  </body>
+  </html>
+  `;
+
+  res.status(200).send(html);
+});
+
 // ==========================================
 //  ENDPOINT: Tipo de Identificación
 // ==========================================
@@ -926,15 +1152,23 @@ app.post("/api/hv/registrar", async (req, res) => {
 
 app.use("/api/correo", correoAspiranteRoutes);
 
+app.use(express.static(__dirname));
 
-// --- Inicio del servidor ---
+app.get('*', (req, res, next) => {
+  // Si es una ruta de API, continúa
+  if (req.path.startsWith('/api')) {
+    return next();
+  }
+
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
 const PORT = process.env.PORT || 5500;
 
 app.listen(PORT, () => {
   console.log(`HV server listening on port ${PORT}`);
 });
 
-// Graceful shutdown: cerrar pool de conexiones antes de salir
 async function shutdown() {
   console.log("Shutting down server...");
   try {
