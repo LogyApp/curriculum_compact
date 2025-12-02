@@ -634,9 +634,9 @@ app.post("/api/hv/upload-photo", upload.single("photo"), async (req, res) => {
 //  POST /api/hv/registrar
 // ======================================================
 app.post("/api/hv/registrar", async (req, res) => {
-  const body = req.body;
+  console.log("📝 HV Registrar endpoint hit");
 
-  // Desestructuramos lo que envía el front
+  const body = req.body;
   const datosAspirante = body || {};
 
   const {
@@ -840,7 +840,7 @@ app.post("/api/hv/registrar", async (req, res) => {
         ]
       );
 
-      // Obtener id mediante la identificación (garantiza compatibilidad con estructura actual)
+      // Obtener id mediante la identificación
       const [rowId] = await conn.query(
         `SELECT id_aspirante FROM Dynamic_hv_aspirante WHERE identificacion = ? ORDER BY fecha_registro DESC LIMIT 1`,
         [identificacion]
@@ -1063,180 +1063,192 @@ app.post("/api/hv/registrar", async (req, res) => {
       );
     }
 
-    await conn.commit();
+    // ========== CONSTRUIR DATOS PARA EL PDF ==========
+    function toHtmlList(items, renderer) {
+      if (!Array.isArray(items) || items.length === 0) return "<div class='small'>No registrado</div>";
+      return items.map((it, i) => `<div class="list-item"><strong>${i + 1}.</strong> ${renderer(it)}</div>`).join("");
+    }
+
+    const EDUCACION_LIST = toHtmlList(
+      educacion,
+      e => `${escapeHtml(e.institucion || "")} — ${escapeHtml(e.programa || "")} (${escapeHtml(e.modalidad || "-")}) ${e.ano ? `• ${escapeHtml(String(e.ano))}` : ""}`
+    );
+
+    const EXPERIENCIA_LIST = toHtmlList(
+      experiencia_laboral,
+      ex => `${escapeHtml(ex.empresa || "")} — ${escapeHtml(ex.cargo || "")}<br><span class="small">${escapeHtml(ex.tiempo_laborado || "")} • ${escapeHtml(ex.funciones || "")}</span>`
+    );
+
+    const REFERENCIAS_LIST = toHtmlList(
+      referencias,
+      r => {
+        if ((r.tipo_referencia || "").toLowerCase().includes("laboral")) {
+          return `${escapeHtml(r.empresa || "")} — ${escapeHtml(r.jefe_inmediato || "")} (${escapeHtml(r.telefono || "")})`;
+        }
+        return `${escapeHtml(r.nombre_completo || "")} — ${escapeHtml(r.telefono || "")} ${escapeHtml(r.ocupacion || "") ? "• " + escapeHtml(r.ocupacion) : ""}`;
+      }
+    );
+
+    const FAMILIARES_LIST = toHtmlList(
+      familiares,
+      f => `${escapeHtml(f.nombre_completo || "")} — ${escapeHtml(f.parentesco || "")} • ${escapeHtml(String(f.edad || ""))}`
+    );
+
+    const CONTACTO_HTML = contacto_emergencia && contacto_emergencia.nombre_completo
+      ? `${escapeHtml(contacto_emergencia.nombre_completo)} • ${escapeHtml(contacto_emergencia.telefono || "")} • ${escapeHtml(contacto_emergencia.correo_electronico || "")}`
+      : "";
+
+    // Construir METAS_HTML enumerada
+    const metasObj = metas_personales || {};
+    const metasItems = [];
+    const m1 = metasObj.meta_corto_plazo || metasObj.corto_plazo || "";
+    const m2 = metasObj.meta_mediano_plazo || metasObj.mediano_plazo || "";
+    const m3 = metasObj.meta_largo_plazo || metasObj.largo_plazo || "";
+    if (m1 && m1.trim()) metasItems.push(m1.trim());
+    if (m2 && m2.trim()) metasItems.push(m2.trim());
+    if (m3 && m3.trim()) metasItems.push(m3.trim());
+
+    let METAS_HTML;
+    if (metasItems.length === 0) {
+      METAS_HTML = "<div class='small'>No registrado</div>";
+    } else {
+      METAS_HTML = metasItems.map((txt, i) =>
+        `<div class="list-item"><strong>${i + 1}.</strong> ${escapeHtml(txt)}</div>`
+      ).join("");
+    }
+
+    function siNo(valor) {
+      if (valor === null || valor === undefined) return "";
+      return valor == 1 ? "Sí" : "No";
+    }
+
+    // Construir dataObjects para la plantilla del PDF
+    const aspiranteData = {
+      NOMBRE_COMPLETO: `${escapeHtml(primer_nombre || "")} ${escapeHtml(primer_apellido || "")}`.trim(),
+      TIPO_ID: escapeHtml(tipo_documento || ""),
+      IDENTIFICACION: escapeHtml(identificacion || ""),
+      CIUDAD_RESIDENCIA: escapeHtml(ciudad_residencia || datosAspirante.ciudad || ""),
+      TELEFONO: escapeHtml(telefono || datosAspirante.telefono || ""),
+      CORREO: escapeHtml(correo_electronico || datosAspirante.correo_electronico || ""),
+      DIRECCION: escapeHtml(direccion_barrio || datosAspirante.direccion_barrio || ""),
+      FECHA_NACIMIENTO: escapeHtml(fecha_nacimiento || ""),
+      ESTADO_CIVIL: escapeHtml(estado_civil || ""),
+      EPS: escapeHtml(eps || ""),
+      AFP: escapeHtml(afp || ""),
+      RH: escapeHtml(rh || ""),
+      CAMISA_TALLA: escapeHtml(camisa_talla || ""),
+      TALLA_PANTALON: escapeHtml(talla_pantalon || ""),
+      ZAPATOS_TALLA: escapeHtml(zapatos_talla || ""),
+      PHOTO_URL: datosAspirante.foto_public_url || "",
+      EDUCACION_LIST,
+      EXPERIENCIA_LIST,
+      REFERENCIAS_LIST,
+      FAMILIARES_LIST,
+      CONTACTO_EMERGENCIA: CONTACTO_HTML,
+      METAS: METAS_HTML,
+      FECHA_GENERACION: new Date().toLocaleString(),
+      LOGO_URL: process.env.LOGO_PUBLIC_URL || "https://storage.googleapis.com/logyser-recibo-public/logo.png",
+      SEG_LLAMADOS: siNo(seguridad && seguridad.llamados_atencion),
+      SEG_DETALLE_LLAMADOS: escapeHtml((seguridad && seguridad.detalle_llamados) || ""),
+      SEG_ACCIDENTE: siNo(seguridad && seguridad.accidente_laboral),
+      SEG_DETALLE_ACCIDENTE: escapeHtml((seguridad && seguridad.detalle_accidente) || ""),
+      SEG_ENFERMEDAD: siNo(seguridad && seguridad.enfermedad_importante),
+      SEG_DETALLE_ENFERMEDAD: escapeHtml((seguridad && seguridad.detalle_enfermedad) || ""),
+      SEG_ALCOHOL: siNo(seguridad && seguridad.consume_alcohol),
+      SEG_FRECUENCIA: escapeHtml((seguridad && seguridad.frecuencia_alcohol) || ""),
+      SEG_FAMILIAR: siNo(seguridad && seguridad.familiar_en_empresa),
+      SEG_DETALLE_FAMILIAR: escapeHtml((seguridad && seguridad.detalle_familiar_empresa) || ""),
+      SEG_INFO_FALSA: siNo(seguridad && seguridad.info_falsa),
+      SEG_POLIGRAFO: siNo(seguridad && seguridad.acepta_poligrafo),
+      SEG_FORTALEZAS: escapeHtml((seguridad && seguridad.fortalezas) || ""),
+      SEG_MEJORAR: escapeHtml((seguridad && seguridad.aspectos_mejorar) || ""),
+      SEG_RESOLUCION: escapeHtml((seguridad && seguridad.resolucion_problemas) || ""),
+      SEG_OBSERVACIONES: escapeHtml((seguridad && seguridad.observaciones) || "")
+    };
+
+    // ========== GENERAR Y SUBIR PDF ==========
+    let pdfResult = null;
+    let pdfUrl = null;
 
     try {
-      // preparar dataObjects a partir de lo que acabas de insertar/actualizar
-      // --- Construir HTML para listas (insertar en server.js justo antes de llamar generateAndUploadPdf) ---
-      function toHtmlList(items, renderer) {
-        if (!Array.isArray(items) || items.length === 0) return "<div class='small'>No registrado</div>";
-        return items.map((it, i) => `<div class="list-item"><strong>${i + 1}.</strong> ${renderer(it)}</div>`).join("");
-      }
+      console.log(`🔄 Generando PDF para: ${identificacion}`);
 
-      const EDUCACION_LIST = toHtmlList(
-        educacion,
-        e => `${escapeHtml(e.institucion || "")} — ${escapeHtml(e.programa || "")} (${escapeHtml(e.modalidad || "-")}) ${e.ano ? `• ${escapeHtml(String(e.ano))}` : ""}`
-      );
-
-      const EXPERIENCIA_LIST = toHtmlList(
-        experiencia_laboral,
-        ex => `${escapeHtml(ex.empresa || "")} — ${escapeHtml(ex.cargo || "")}<br><span class="small">${escapeHtml(ex.tiempo_laborado || "")} • ${escapeHtml(ex.funciones || "")}</span>`
-      );
-
-      const REFERENCIAS_LIST = toHtmlList(
-        referencias,
-        r => {
-          if ((r.tipo_referencia || "").toLowerCase().includes("laboral")) {
-            return `${escapeHtml(r.empresa || "")} — ${escapeHtml(r.jefe_inmediato || "")} (${escapeHtml(r.telefono || "")})`;
-          }
-          return `${escapeHtml(r.nombre_completo || "")} — ${escapeHtml(r.telefono || "")} ${escapeHtml(r.ocupacion || "") ? "• " + escapeHtml(r.ocupacion) : ""}`;
-        }
-      );
-
-      const FAMILIARES_LIST = toHtmlList(
-        familiares,
-        f => `${escapeHtml(f.nombre_completo || "")} — ${escapeHtml(f.parentesco || "")} • ${escapeHtml(String(f.edad || ""))}`
-      );
-
-      const CONTACTO_HTML = contacto_emergencia && contacto_emergencia.nombre_completo
-        ? `${escapeHtml(contacto_emergencia.nombre_completo)} • ${escapeHtml(contacto_emergencia.telefono || "")} • ${escapeHtml(contacto_emergencia.correo_electronico || "")}`
-        : "";
-
-      // Construir METAS_HTML enumerada (mantiene compatibilidad con meta_* o corto_plazo)
-      const metasObj = metas_personales || {};
-      const metasItems = [];
-      const m1 = metasObj.meta_corto_plazo || metasObj.corto_plazo || "";
-      const m2 = metasObj.meta_mediano_plazo || metasObj.mediano_plazo || "";
-      const m3 = metasObj.meta_largo_plazo || metasObj.largo_plazo || "";
-      if (m1 && m1.trim()) metasItems.push(m1.trim());
-      if (m2 && m2.trim()) metasItems.push(m2.trim());
-      if (m3 && m3.trim()) metasItems.push(m3.trim());
-
-      let METAS_HTML;
-      if (metasItems.length === 0) {
-        METAS_HTML = "<div class='small'>No registrado</div>";
+      if (!bucket) {
+        console.warn("⚠️ Bucket no disponible, omitiendo generación de PDF");
       } else {
-        METAS_HTML = metasItems.map((txt, i) =>
-          `<div class="list-item"><strong>${i + 1}.</strong> ${escapeHtml(txt)}</div>`
-        ).join("");
-      }
-      function siNo(valor) {
-        if (valor === null || valor === undefined) return "";
-        return valor == 1 ? "Sí" : "No";
-      }
+        // LLAMADA ÚNICA a generateAndUploadPdf con TODOS los parámetros necesarios
+        pdfResult = await generateAndUploadPdf({
+          identificacion,
+          dataObjects: aspiranteData,
+          bucket,          // ← Pasar el bucket desde server.js
+          bucketName: GCS_BUCKET  // ← Pasar el nombre del bucket
+        });
 
-      // Construir dataObjects para la plantilla
-      // --- Construir dataObjects para la plantilla (reemplazar el aspiranteData actual) ---
-      const aspiranteData = {
-        NOMBRE_COMPLETO: `${escapeHtml(primer_nombre || "")} ${escapeHtml(primer_apellido || "")}`.trim(),
-        TIPO_ID: escapeHtml(tipo_documento || ""),
-        IDENTIFICACION: escapeHtml(identificacion || ""),
-        CIUDAD_RESIDENCIA: escapeHtml(ciudad_residencia || datosAspirante.ciudad || ""),
-        TELEFONO: escapeHtml(telefono || datosAspirante.telefono || ""),
-        CORREO: escapeHtml(correo_electronico || datosAspirante.correo_electronico || ""),
-        DIRECCION: escapeHtml(direccion_barrio || datosAspirante.direccion_barrio || ""),
-        FECHA_NACIMIENTO: escapeHtml(fecha_nacimiento || ""),
-        ESTADO_CIVIL: escapeHtml(estado_civil || ""),
-        EPS: escapeHtml(eps || ""),
-        AFP: escapeHtml(afp || ""),
+        pdfUrl = pdfResult.publicUrl;
 
-        RH: escapeHtml(rh || ""),
-        CAMISA_TALLA: escapeHtml(camisa_talla || ""),
-        TALLA_PANTALON: escapeHtml(talla_pantalon || ""),
-        ZAPATOS_TALLA: escapeHtml(zapatos_talla || ""),
+        console.log(`✅ PDF generado exitosamente:`);
+        console.log(`   📁 Ruta: ${pdfResult.destName}`);
+        console.log(`   🔗 URL: ${pdfUrl}`);
 
-        PHOTO_URL: datosAspirante.foto_public_url || "",
-
-        // HTML ya construido arriba
-        EDUCACION_LIST,
-        EXPERIENCIA_LIST,
-        REFERENCIAS_LIST,
-        FAMILIARES_LIST,
-        CONTACTO_EMERGENCIA: CONTACTO_HTML,
-        METAS: METAS_HTML,
-
-        FECHA_GENERACION: new Date().toLocaleString(),
-
-        // Logo: preferible usar variable de entorno LOGO_PUBLIC_URL en lugar de hardcodear
-        LOGO_URL: process.env.LOGO_PUBLIC_URL || "https://storage.googleapis.com/logyser-recibo-public/logo.png",
-
-        // Seguridad / cuestionario
-        SEG_LLAMADOS: siNo(seguridad && seguridad.llamados_atencion),
-        SEG_DETALLE_LLAMADOS: escapeHtml((seguridad && seguridad.detalle_llamados) || ""),
-        SEG_ACCIDENTE: siNo(seguridad && seguridad.accidente_laboral),
-        SEG_DETALLE_ACCIDENTE: escapeHtml((seguridad && seguridad.detalle_accidente) || ""),
-        SEG_ENFERMEDAD: siNo(seguridad && seguridad.enfermedad_importante),
-        SEG_DETALLE_ENFERMEDAD: escapeHtml((seguridad && seguridad.detalle_enfermedad) || ""),
-        SEG_ALCOHOL: siNo(seguridad && seguridad.consume_alcohol),
-        SEG_FRECUENCIA: escapeHtml((seguridad && seguridad.frecuencia_alcohol) || ""),
-        SEG_FAMILIAR: siNo(seguridad && seguridad.familiar_en_empresa),
-        SEG_DETALLE_FAMILIAR: escapeHtml((seguridad && seguridad.detalle_familiar_empresa) || ""),
-        SEG_INFO_FALSA: siNo(seguridad && seguridad.info_falsa),
-        SEG_POLIGRAFO: siNo(seguridad && seguridad.acepta_poligrafo),
-        SEG_FORTALEZAS: escapeHtml((seguridad && seguridad.fortalezas) || ""),
-        SEG_MEJORAR: escapeHtml((seguridad && seguridad.aspectos_mejorar) || ""),
-        SEG_RESOLUCION: escapeHtml((seguridad && seguridad.resolucion_problemas) || ""),
-        SEG_OBSERVACIONES: escapeHtml((seguridad && seguridad.observaciones) || "")
-      };
-
-      const { destName, signedUrl } = await generateAndUploadPdf({ identificacion, dataObjects: aspiranteData });
-
-      // Actualizar DB con referencia al PDF
-      await conn.query(
-        `UPDATE Dynamic_hv_aspirante SET pdf_gcs_path = ?, pdf_public_url = ? WHERE identificacion = ?`,
-        [destName, signedUrl, identificacion]
-      );
-      // EN tu endpoint /api/hv/registrar, después de generar el PDF:
-      try {
-        const { destName, signedUrl } = await generateAndUploadPdf({ identificacion, dataObjects: aspiranteData });
-
-        // Obtener URL pública (signed URL o URL pública de fallback)
-        let pdfPublicUrl = signedUrl;
-
-        if (!pdfPublicUrl && destName) {
-          // Fallback a URL pública
-          pdfPublicUrl = `https://storage.googleapis.com/${GCS_BUCKET}/${destName}`;
-        }
-
-        // Guardar ambas referencias en DB
+        // Guardar en DB
         await conn.query(
           `UPDATE Dynamic_hv_aspirante SET 
-      pdf_gcs_path = ?, 
-      pdf_public_url = ?,
-      pdf_signed_url = ?
-    WHERE identificacion = ?`,
-          [destName, pdfPublicUrl, signedUrl, identificacion]
+            pdf_gcs_path = ?,
+            pdf_public_url = ?
+          WHERE identificacion = ?`,
+          [pdfResult.destName, pdfUrl, identificacion]
         );
-
-        // Guardar la URL para enviar en el correo
-        aspiranteData.pdf_public_url = pdfPublicUrl;
-
-      } catch (err) {
-        console.error("Error generando PDF:", err);
-        aspiranteData.pdf_public_url = null;
       }
+    } catch (pdfError) {
+      console.error(`❌ Error generando PDF: ${pdfError.message}`);
+      pdfUrl = null;
+    }
 
-    } catch (err) {
-      console.error("Error generando PDF:", err);
-      // no fallo crítico: puedes continuar; opcional: notificar
+    await conn.commit();
+
+    // ========== ENVIAR CORREO ==========
+    if (pdfUrl) {
+      try {
+        // Importar dinámicamente para evitar dependencia circular
+        import('./send-to-email.js').then(async (module) => {
+          await module.default({
+            nombre: `${primer_nombre} ${primer_apellido}`.trim(),
+            identificacion,
+            correo: correo_electronico,
+            telefono,
+            pdf_url: pdfUrl,
+            timestamp: new Date().toLocaleString('es-CO')
+          });
+          console.log("✅ Correo enviado exitosamente");
+        }).catch(emailError => {
+          console.error("⚠️ Error enviando correo:", emailError.message);
+        });
+      } catch (mailError) {
+        console.error("⚠️ Error en envío de correo:", mailError);
+      }
+    } else {
+      console.log("⚠️ No hay URL de PDF, omitiendo envío de correo");
     }
 
     res.json({
       ok: true,
       message: "Hoja de vida registrada correctamente",
-      id_aspirante: idAspirante
+      id_aspirante: idAspirante,
+      pdf_generado: !!pdfUrl,
+      pdf_url: pdfUrl || null
     });
+
   } catch (error) {
-    console.error("Error registrando HV:", error);
+    console.error("❌ Error registrando HV:", error);
     await conn.rollback();
     res.status(500).json({
       ok: false,
-      error: "Error registrando hoja de vida"
+      error: "Error registrando hoja de vida",
+      details: error.message
     });
   } finally {
     conn.release();
   }
-
 });
 
 app.use("/api/correo", correoAspiranteRoutes);
@@ -1271,3 +1283,5 @@ async function shutdown() {
 
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
+
+export { bucket, GCS_BUCKET };
