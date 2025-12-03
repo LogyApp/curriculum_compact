@@ -50,7 +50,7 @@ Revisa en LogyApp para más detalles.
         .pdf-button { 
           display: inline-block; 
           background: linear-gradient(135deg, #F15300 0%, #ff7043 100%); 
-          color: #fff3e0; 
+          color: Green; 
           padding: 14px 28px; 
           text-decoration: none; 
           border-radius: 8px; 
