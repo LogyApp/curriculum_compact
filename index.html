@@ -1328,23 +1328,46 @@
           ingresoMsg.style.color = "green";
           ingresoMsg.textContent = "✔ Registro encontrado. Cargando datos...";
 
-          // <-- CAMBIO: pasar todo `data` para que `rellenarFormulario`
-          // reciba `data.educacion`, `data.experiencia_laboral`, etc.
+          // Guardar en sessionStorage inmediatamente
+          sessionStorage.setItem("tipo_ingreso", tipo);
+          sessionStorage.setItem("id_ingreso", id);
+
+          // Llamar a updateIngresoLabel para que se muestre en el paso 2
+          if (typeof updateIngresoLabel === "function") {
+            updateIngresoLabel();
+          }
+
           rellenarFormulario(data);
 
-          // Sincronizar identificación y tipo de documento con el paso 2
-          if (identificacionInput) identificacionInput.value = id;
-          const tipoDocMain = document.getElementById("tipo_documento");
-          if (tipoDocMain) tipoDocMain.value = tipo;
-
           setTimeout(() => {
+            // Forzar que se muestren los valores en el paso 2
+            const tipoMain = document.getElementById("tipo_documento");
+            const identMain = document.getElementById("identificacion");
+
+            if (tipoMain) {
+              tipoMain.value = tipo;
+              tipoMain.setAttribute("disabled", true);
+            }
+            if (identMain) {
+              identMain.value = id;
+              identMain.setAttribute("readonly", true);
+            }
+
             showStep(1);
-          }, 300);
+          }, 500);
 
           return true;
         } else {
           ingresoMsg.style.color = "#444";
           ingresoMsg.textContent = "ℹ No encontramos un registro previo. Continúa con el formulario.";
+
+          // Guardar igualmente para que aparezcan en el paso 2
+          sessionStorage.setItem("tipo_ingreso", tipo);
+          sessionStorage.setItem("id_ingreso", id);
+
+          if (typeof updateIngresoLabel === "function") {
+            updateIngresoLabel();
+          }
 
           setTimeout(() => {
             showStep(1);
@@ -2062,20 +2085,29 @@
 
     btnNext.addEventListener("click", async () => {
       if (currentStep === 0) {
-
         const ok = await validarIngreso();
         if (!ok) return;
 
-        // Guardar valores solo cuando VALIDÓ y va a pasar al paso 1
-        sessionStorage.setItem("tipo_ingreso", tipoDocumentoIngreso.value.trim());
-        sessionStorage.setItem("id_ingreso", identificacionIngreso.value.trim());
-        // Intentar sincronizar la etiqueta de ingreso en la UI (si la función ya está definida)
+        // Asegurar que los datos se guarden antes de cambiar de paso
+        const tipo = tipoDocumentoIngreso.value.trim();
+        const id = identificacionIngreso.value.trim();
+
+        sessionStorage.setItem("tipo_ingreso", tipo);
+        sessionStorage.setItem("id_ingreso", id);
+
+        // Actualizar etiqueta inmediatamente
         if (typeof updateIngresoLabel === "function") {
-          try { updateIngresoLabel(); } catch (err) { console.error("updateIngresoLabel error:", err); }
-        } else {
-          // marcar para ejecución posterior si aún no existe
-          window._pendingUpdateIngreso = true;
+          updateIngresoLabel();
         }
+
+        // Forzar el cambio después de un pequeño delay para que los selects se carguen
+        setTimeout(() => {
+          if (!validateStep(currentStep)) return;
+          if (currentStep < steps.length - 1) {
+            showStep(currentStep + 1);
+          }
+        }, 300);
+        return;
       }
 
       if (!validateStep(currentStep)) return;
@@ -2979,11 +3011,14 @@
     });
 
     // ⭐ FUNCIÓN PARA PRELLENAR DATOS PERSONALES ⭐
+    // ⭐ FUNCIÓN PARA PRELLENAR DATOS PERSONALES ⭐
     function prellenarDatosPersonales() {
       // Lo que se guardó en el paso 0
-      const tipo = sessionStorage.getItem("tipo_ingreso");   // ya es la DESCRIPCIÓN
+      const tipo = sessionStorage.getItem("tipo_ingreso");
       const id = sessionStorage.getItem("id_ingreso");
       const form = document.getElementById("hv-form");
+
+      console.log("prellenarDatosPersonales ejecutado:", { tipo, id });
 
       // Helper para crear/actualizar hidden inputs
       function ensureHidden(name, idEl, value) {
@@ -3002,9 +3037,19 @@
       if (tipo) {
         const selectTipo = document.getElementById("tipo_documento");
         if (selectTipo) {
-          selectTipo.value = tipo;              // coincide con las opciones que carga app.js
-          // Para que el usuario no lo cambie, lo dejamos disabled (select no soporta readonly).
-          // Pero añadimos un hidden con el mismo name para que se envíe en el submit.
+          selectTipo.value = tipo;
+          // Asegurar que el select tenga la opción disponible
+          if (selectTipo.value !== tipo) {
+            // Si el valor no está disponible en las opciones, agregarlo
+            const optionExists = Array.from(selectTipo.options).some(opt => opt.value === tipo);
+            if (!optionExists && tipo) {
+              const newOption = document.createElement("option");
+              newOption.value = tipo;
+              newOption.textContent = tipo;
+              selectTipo.appendChild(newOption);
+              selectTipo.value = tipo;
+            }
+          }
           selectTipo.setAttribute("disabled", true);
           ensureHidden("tipo_documento", "hidden_tipo_documento", tipo);
         }
@@ -3015,13 +3060,39 @@
         const inputId = document.getElementById("identificacion");
         if (inputId) {
           inputId.value = id;
-          // Para inputs podemos usar readonly (se incluye en el submit). Si por UX prefieres disabled,
-          // el hidden garantiza que el backend reciba el valor.
           inputId.setAttribute("readonly", true);
           ensureHidden("identificacion", "hidden_identificacion", id);
         }
       }
     }
+
+    // Modificar el event listener para que se ejecute cada vez que cambiamos al paso 2
+    document.addEventListener("tipos-cargados", prellenarDatosPersonales);
+
+    // También ejecutar prellenarDatosPersonales cuando se muestra el paso 2
+    const originalShowStep = showStep;
+    showStep = function (index) {
+      originalShowStep(index);
+
+      // Si estamos mostrando el paso 2, asegurar que los datos de ingreso estén visibles
+      if (index === 2) {
+        setTimeout(() => {
+          updateIngresoLabel();
+          prellenarDatosPersonales();
+
+          // Forzar la validación para que no marque error
+          const tipoInput = document.getElementById("tipo_documento");
+          const idInput = document.getElementById("identificacion");
+
+          if (tipoInput && tipoInput.value) {
+            tipoInput.style.borderColor = "var(--border)";
+          }
+          if (idInput && idInput.value) {
+            idInput.style.borderColor = "var(--border)";
+          }
+        }, 100);
+      }
+    };
     document.addEventListener("tipos-cargados", prellenarDatosPersonales);
   </script>
 
