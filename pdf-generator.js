@@ -66,7 +66,8 @@ export async function generateAndUploadPdf({
   dataObjects = {},
   destNamePrefix = "cv",
   bucket,
-  bucketName
+  bucketName,
+  deleteOldFiles = true  // Nueva opción para limpiar archivos viejos
 }) {
   console.log(`📄 [PDF Generator] Iniciando para: ${identificacion}`);
 
@@ -81,6 +82,42 @@ export async function generateAndUploadPdf({
     }
 
     console.log(`🏢 Bucket recibido: ${bucketName}`);
+
+    // ========== LIMPIAR ARCHIVOS ANTIGUOS ==========
+    if (deleteOldFiles) {
+      try {
+        console.log(`🧹 Buscando PDFs antiguos para: ${identificacion}`);
+
+        // Listar todos los archivos en la carpeta del aspirante
+        const [files] = await bucket.getFiles({
+          prefix: `${identificacion}/`
+        });
+
+        if (files.length > 0) {
+          console.log(`📁 Encontrados ${files.length} archivos en carpeta ${identificacion}/`);
+
+          // Filtrar solo PDFs (por si hay otros tipos de archivos)
+          const pdfFiles = files.filter(file => file.name.endsWith('.pdf'));
+
+          if (pdfFiles.length > 0) {
+            console.log(`🗑️ Eliminando ${pdfFiles.length} PDFs antiguos...`);
+
+            // Eliminar en paralelo
+            await Promise.all(
+              pdfFiles.map(file => {
+                console.log(`   🗑️ Eliminando: ${file.name}`);
+                return file.delete();
+              })
+            );
+
+            console.log(`✅ PDFs antiguos eliminados exitosamente`);
+          }
+        }
+      } catch (cleanupError) {
+        console.warn(`⚠️ Error limpiando archivos antiguos: ${cleanupError.message}`);
+        // NO lanzar error, continuar con la generación del nuevo PDF
+      }
+    }
 
     // ========== ENCONTRAR PLANTILLA ==========
     let templatePath = null;
