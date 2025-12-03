@@ -628,8 +628,23 @@ app.post("/api/hv/upload-photo", upload.single("photo"), async (req, res) => {
 app.post("/api/hv/registrar", async (req, res) => {
   console.log("📝 HV Registrar endpoint hit");
 
+  // ========== HEADERS CORS EXPLÍCITOS ==========
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+
   const body = req.body;
   const datosAspirante = body || {};
+
+  // Validación mínima requerida
+  if (!datosAspirante.identificacion || !datosAspirante.tipo_documento) {
+    return res.status(400).json({
+      ok: false,
+      error: "Identificación y tipo de documento son requeridos",
+      details: "Faltan campos obligatorios"
+    });
+  }
 
   const {
     // Datos personales (Dynamic_hv_aspirante)
@@ -656,7 +671,7 @@ app.post("/api/hv/registrar", async (req, res) => {
     talla_pantalon,
     camisa_talla,
     zapatos_talla,
-    origen_registro,
+    origen_registro = "WEB",
     medio_reclutamiento,
     recomendador_aspirante,
 
@@ -671,78 +686,54 @@ app.post("/api/hv/registrar", async (req, res) => {
   } = datosAspirante;
 
   const conn = await pool.getConnection();
+  let transactionCommitted = false;
 
   try {
     await conn.beginTransaction();
 
     // ========== 1. VERIFICAR Y OBTENER ID_ASPIRANTE ==========
     let idAspirante = null;
-    let pdf_gcs_path_anterior = null;
-    let pdf_public_url_anterior = null;
+    let pdfExistente = null;
 
-    if (identificacion) {
-      const [existingRows] = await conn.query(
-        `SELECT id_aspirante, pdf_gcs_path, pdf_public_url FROM Dynamic_hv_aspirante WHERE identificacion = ? LIMIT 1`,
-        [identificacion]
-      );
+    const [existingRows] = await conn.query(
+      `SELECT id_aspirante, pdf_gcs_path, pdf_public_url FROM Dynamic_hv_aspirante WHERE identificacion = ? LIMIT 1`,
+      [identificacion]
+    );
 
-      if (existingRows && existingRows.length > 0) {
-        idAspirante = existingRows[0].id_aspirante;
-        pdf_gcs_path_anterior = existingRows[0].pdf_gcs_path;
-        pdf_public_url_anterior = existingRows[0].pdf_public_url;
-
-        console.log(`📄 Aspirante existente encontrado. ID: ${idAspirante}`);
-        if (pdf_gcs_path_anterior) {
-          console.log(`📁 PDF anterior en GCS: ${pdf_gcs_path_anterior}`);
-        }
-      }
+    if (existingRows && existingRows.length > 0) {
+      idAspirante = existingRows[0].id_aspirante;
+      pdfExistente = {
+        gcs_path: existingRows[0].pdf_gcs_path,
+        public_url: existingRows[0].pdf_public_url
+      };
+      console.log(`📄 Aspirante existente encontrado. ID: ${idAspirante}`);
     }
 
-    // ========== 2. LIMPIAR PDFs ANTIGUOS DE GCS (ANTES DE CUALQUIER OPERACIÓN) ==========
-    if (identificacion && bucket) {
+    // ========== 2. LIMPIAR PDFs ANTIGUOS DE GCS (OPCIONAL Y SEGURO) ==========
+    if (identificacion && bucket && pdfExistente?.gcs_path) {
       try {
-        console.log(`🧹 Limpiando PDFs antiguos para: ${identificacion}`);
+        console.log(`🧹 Intentando eliminar PDF anterior: ${pdfExistente.gcs_path}`);
 
-        // Listar todos los PDFs en la carpeta del aspirante
-        const [files] = await bucket.getFiles({
-          prefix: `${identificacion}/`
-        });
+        const oldFile = bucket.file(pdfExistente.gcs_path);
+        const [exists] = await oldFile.exists();
 
-        if (files.length > 0) {
-          console.log(`📁 Encontrados ${files.length} archivos en carpeta ${identificacion}/`);
-
-          // Filtrar solo PDFs
-          const pdfFiles = files.filter(file => file.name.endsWith('.pdf'));
-
-          if (pdfFiles.length > 0) {
-            console.log(`🗑️ Eliminando ${pdfFiles.length} PDFs antiguos...`);
-
-            // Eliminar en paralelo pero con manejo de errores individual
-            await Promise.all(
-              pdfFiles.map(async (file) => {
-                try {
-                  console.log(`   🗑️ Intentando eliminar: ${file.name}`);
-                  await file.delete();
-                  console.log(`   ✅ Eliminado: ${file.name}`);
-                } catch (deleteError) {
-                  console.warn(`   ⚠️ No se pudo eliminar ${file.name}: ${deleteError.message}`);
-                  // Continuar aunque falle la eliminación de un archivo
-                }
-              })
-            );
-
-            console.log(`✅ Limpieza de PDFs completada para ${identificacion}`);
-          }
+        if (exists) {
+          await oldFile.delete();
+          console.log(`✅ PDF anterior eliminado de GCS`);
+        } else {
+          console.log(`ℹ️ PDF anterior no encontrado en GCS, continuando...`);
         }
-      } catch (cleanupError) {
-        console.warn(`⚠️ Error en limpieza de PDFs: ${cleanupError.message}`);
-        // NO hacer rollback, solo continuar
+      } catch (deleteError) {
+        console.warn(`⚠️ No se pudo eliminar PDF anterior: ${deleteError.message}`);
+        // CONTINUAR - esto no es crítico
       }
     }
 
     // ========== 3. INSERTAR/ACTUALIZAR ASPIRANTE ==========
+    const ahora = new Date();
+
     if (idAspirante) {
-      // --- Caso: ya existe -> hacemos UPDATE y reinsertamos hijos ---
+      // UPDATE del aspirante existente
       await conn.query(
         `
         UPDATE Dynamic_hv_aspirante SET
@@ -758,8 +749,8 @@ app.post("/api/hv/registrar", async (req, res) => {
           fecha_expedicion = ?,
           estado_civil = ?,
           direccion_barrio = ?,
-          departamento = ?,       -- se usa la columna 'departamento' para departamento_residencia
-          ciudad = ?,            -- se usa la columna 'ciudad' para ciudad_residencia
+          departamento = ?,
+          ciudad = ?,
           telefono = ?,
           correo_electronico = ?,
           eps = ?,
@@ -773,7 +764,7 @@ app.post("/api/hv/registrar", async (req, res) => {
           origen_registro = ?,
           medio_reclutamiento = ?,
           recomendador_aspirante = ?,
-          fecha_actualizacion = NOW()
+          fecha_actualizacion = ?
         WHERE id_aspirante = ?
         `,
         [
@@ -801,60 +792,42 @@ app.post("/api/hv/registrar", async (req, res) => {
           zapatos_talla || null,
           datosAspirante.foto_gcs_path || null,
           datosAspirante.foto_public_url || null,
-          origen_registro || "WEB",
+          origen_registro,
           medio_reclutamiento || null,
           recomendador_aspirante || null,
+          ahora,
           idAspirante
         ]
       );
 
-      // Borrar datos hijos existentes para ese aspirante (los volveremos a insertar)
-      await conn.query(`DELETE FROM Dynamic_hv_educacion WHERE id_aspirante = ?`, [idAspirante]);
-      await conn.query(`DELETE FROM Dynamic_hv_experiencia_laboral WHERE id_aspirante = ?`, [idAspirante]);
-      await conn.query(`DELETE FROM Dynamic_hv_familiares WHERE id_aspirante = ?`, [idAspirante]);
-      await conn.query(`DELETE FROM Dynamic_hv_referencias WHERE id_aspirante = ?`, [idAspirante]);
-      await conn.query(`DELETE FROM Dynamic_hv_contacto_emergencia WHERE id_aspirante = ?`, [idAspirante]);
-      await conn.query(`DELETE FROM Dynamic_hv_metas_personales WHERE id_aspirante = ?`, [idAspirante]);
-      await conn.query(`DELETE FROM Dynamic_hv_seguridad WHERE id_aspirante = ?`, [idAspirante]);
+      // Limpiar datos relacionados
+      const deleteQueries = [
+        conn.query(`DELETE FROM Dynamic_hv_educacion WHERE id_aspirante = ?`, [idAspirante]),
+        conn.query(`DELETE FROM Dynamic_hv_experiencia_laboral WHERE id_aspirante = ?`, [idAspirante]),
+        conn.query(`DELETE FROM Dynamic_hv_familiares WHERE id_aspirante = ?`, [idAspirante]),
+        conn.query(`DELETE FROM Dynamic_hv_referencias WHERE id_aspirante = ?`, [idAspirante]),
+        conn.query(`DELETE FROM Dynamic_hv_contacto_emergencia WHERE id_aspirante = ?`, [idAspirante]),
+        conn.query(`DELETE FROM Dynamic_hv_metas_personales WHERE id_aspirante = ?`, [idAspirante]),
+        conn.query(`DELETE FROM Dynamic_hv_seguridad WHERE id_aspirante = ?`, [idAspirante])
+      ];
 
+      await Promise.all(deleteQueries);
       console.log(`✅ Aspirante actualizado: ${identificacion}`);
 
     } else {
-      // --- Caso: no existe -> insertar nuevo aspirante ---
+      // INSERT de nuevo aspirante
       const [aspiranteResult] = await conn.query(
         `
         INSERT INTO Dynamic_hv_aspirante (
-          tipo_documento,
-          identificacion,
-          primer_nombre,
-          segundo_nombre,
-          primer_apellido,
-          segundo_apellido,
-          fecha_nacimiento,
-          edad,
-          departamento_expedicion,
-          ciudad_expedicion,
-          fecha_expedicion,
-          estado_civil,
-          direccion_barrio,
-          departamento,
-          ciudad,
-          telefono,
-          correo_electronico,
-          eps,
-          afp,
-          rh,
-          talla_pantalon,
-          camisa_talla,
-          zapatos_talla,
-          foto_gcs_path,
-          foto_public_url,
-          origen_registro,
-          medio_reclutamiento,
-          recomendador_aspirante,
-          fecha_registro
-        )
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, NOW())
+          tipo_documento, identificacion, primer_nombre, segundo_nombre,
+          primer_apellido, segundo_apellido, fecha_nacimiento, edad,
+          departamento_expedicion, ciudad_expedicion, fecha_expedicion,
+          estado_civil, direccion_barrio, departamento, ciudad,
+          telefono, correo_electronico, eps, afp, rh,
+          talla_pantalon, camisa_talla, zapatos_talla,
+          foto_gcs_path, foto_public_url, origen_registro,
+          medio_reclutamiento, recomendador_aspirante, fecha_registro
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
           tipo_documento || null,
@@ -882,162 +855,109 @@ app.post("/api/hv/registrar", async (req, res) => {
           zapatos_talla || null,
           datosAspirante.foto_gcs_path || null,
           datosAspirante.foto_public_url || null,
-          origen_registro || "WEB",
+          origen_registro,
           medio_reclutamiento || null,
-          recomendador_aspirante || null
+          recomendador_aspirante || null,
+          ahora
         ]
       );
 
-      // Obtener id mediante la identificación
+      // Obtener el ID del nuevo aspirante
       const [rowId] = await conn.query(
-        `SELECT id_aspirante FROM Dynamic_hv_aspirante WHERE identificacion = ? ORDER BY fecha_registro DESC LIMIT 1`,
+        `SELECT id_aspirante FROM Dynamic_hv_aspirante WHERE identificacion = ? LIMIT 1`,
         [identificacion]
       );
-      idAspirante = rowId && rowId[0] ? rowId[0].id_aspirante : null;
+      idAspirante = rowId?.[0]?.id_aspirante;
 
+      if (!idAspirante) {
+        throw new Error("No se pudo obtener el ID del aspirante después de insertar");
+      }
       console.log(`✅ Nuevo aspirante insertado. ID: ${idAspirante}`);
-    }
-
-    if (!idAspirante) {
-      throw new Error("No se pudo obtener id_aspirante después de insert/update");
     }
 
     // ========== 4. INSERTAR DATOS RELACIONADOS ==========
 
-    // 4.1) Educación (Dynamic_hv_educacion)
+    // 4.1 Educación
     for (const edu of educacion) {
-      if (!edu.institucion && !edu.programa) continue;
-
-      await conn.query(
-        `
-        INSERT INTO Dynamic_hv_educacion (
-          id_aspirante,
-          institucion,
-          programa,
-          nivel_escolaridad,
-          modalidad,
-          ano,
-          finalizado
-        )
-        VALUES (?,?,?,?,?,?,?)
-        `,
-        [
-          idAspirante,
-          edu.institucion || null,
-          edu.programa || null,
-          edu.nivel_escolaridad || null,
-          edu.modalidad || null,
-          edu.ano || null,
-          edu.finalizado || null
-        ]
-      );
+      if (edu.institucion || edu.programa) {
+        await conn.query(
+          `INSERT INTO Dynamic_hv_educacion (id_aspirante, institucion, programa, nivel_escolaridad, modalidad, ano, finalizado)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [
+            idAspirante,
+            edu.institucion || null,
+            edu.programa || null,
+            edu.nivel_escolaridad || null,
+            edu.modalidad || null,
+            edu.ano || null,
+            edu.finalizado || null
+          ]
+        );
+      }
     }
-    console.log(`✅ Educación: ${educacion.length} registros`);
 
-    // 4.2) Experiencia laboral (Dynamic_hv_experiencia_laboral)
+    // 4.2 Experiencia laboral
     for (const exp of experiencia_laboral) {
-      if (!exp.empresa && !exp.cargo) continue;
-
-      await conn.query(
-        `
-        INSERT INTO Dynamic_hv_experiencia_laboral (
-          id_aspirante,
-          empresa,
-          cargo,
-          tiempo_laborado,
-          salario,
-          motivo_retiro,
-          funciones
-        )
-        VALUES (?,?,?,?,?,?,?)
-        `,
-        [
-          idAspirante,
-          exp.empresa || null,
-          exp.cargo || null,
-          exp.tiempo_laborado || null,
-          exp.salario || null,
-          exp.motivo_retiro || null,
-          exp.funciones || null
-        ]
-      );
+      if (exp.empresa || exp.cargo) {
+        await conn.query(
+          `INSERT INTO Dynamic_hv_experiencia_laboral (id_aspirante, empresa, cargo, tiempo_laborado, salario, motivo_retiro, funciones)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [
+            idAspirante,
+            exp.empresa || null,
+            exp.cargo || null,
+            exp.tiempo_laborado || null,
+            exp.salario || null,
+            exp.motivo_retiro || null,
+            exp.funciones || null
+          ]
+        );
+      }
     }
-    console.log(`✅ Experiencia: ${experiencia_laboral.length} registros`);
 
-    // 4.3) Familiares (Dynamic_hv_familiares)
+    // 4.3 Familiares
     for (const fam of familiares) {
-      if (!fam.nombre_completo) continue;
-
-      await conn.query(
-        `
-        INSERT INTO Dynamic_hv_familiares (
-          id_aspirante,
-          nombre_completo,
-          parentesco,
-          edad,
-          ocupacion,
-          conviven_juntos
-        )
-        VALUES (?,?,?,?,?,?)
-        `,
-        [
-          idAspirante,
-          fam.nombre_completo || null,
-          fam.parentesco || null,
-          fam.edad || null,
-          fam.ocupacion || null,
-          fam.conviven_juntos || null
-        ]
-      );
+      if (fam.nombre_completo) {
+        await conn.query(
+          `INSERT INTO Dynamic_hv_familiares (id_aspirante, nombre_completo, parentesco, edad, ocupacion, conviven_juntos)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [
+            idAspirante,
+            fam.nombre_completo || null,
+            fam.parentesco || null,
+            fam.edad || null,
+            fam.ocupacion || null,
+            fam.conviven_juntos || null
+          ]
+        );
+      }
     }
-    console.log(`✅ Familiares: ${familiares.length} registros`);
 
-    // 4.4) Referencias (Dynamic_hv_referencias)
+    // 4.4 Referencias
     for (const ref of referencias) {
-      if (!ref.tipo_referencia) continue;
-
-      await conn.query(
-        `
-        INSERT INTO Dynamic_hv_referencias (
-        id_aspirante,
-        tipo_referencia,
-        empresa,
-        jefe_inmediato,
-        cargo_jefe,
-        nombre_completo,
-        telefono,
-        ocupacion
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `,
-        [
-          idAspirante,
-          ref.tipo_referencia,
-          ref.empresa || null,
-          ref.jefe_inmediato || null,
-          ref.cargo_jefe || null,
-          ref.nombre_completo || null,
-          ref.telefono || null,
-          ref.ocupacion || null
-        ]
-      );
+      if (ref.tipo_referencia) {
+        await conn.query(
+          `INSERT INTO Dynamic_hv_referencias (id_aspirante, tipo_referencia, empresa, jefe_inmediato, cargo_jefe, nombre_completo, telefono, ocupacion)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            idAspirante,
+            ref.tipo_referencia,
+            ref.empresa || null,
+            ref.jefe_inmediato || null,
+            ref.cargo_jefe || null,
+            ref.nombre_completo || null,
+            ref.telefono || null,
+            ref.ocupacion || null
+          ]
+        );
+      }
     }
-    console.log(`✅ Referencias: ${referencias.length} registros`);
 
-    // 4.5) Contacto de emergencia (Dynamic_hv_contacto_emergencia)
-    if (contacto_emergencia && contacto_emergencia.nombre_completo) {
+    // 4.5 Contacto de emergencia
+    if (contacto_emergencia?.nombre_completo) {
       await conn.query(
-        `
-        INSERT INTO Dynamic_hv_contacto_emergencia (
-          id_aspirante,
-          nombre_completo,
-          parentesco,
-          telefono,
-          correo_electronico,
-          direccion
-        )
-        VALUES (?,?,?,?,?,?)
-        `,
+        `INSERT INTO Dynamic_hv_contacto_emergencia (id_aspirante, nombre_completo, parentesco, telefono, correo_electronico, direccion)
+         VALUES (?, ?, ?, ?, ?, ?)`,
         [
           idAspirante,
           contacto_emergencia.nombre_completo || null,
@@ -1047,21 +967,13 @@ app.post("/api/hv/registrar", async (req, res) => {
           contacto_emergencia.direccion || null
         ]
       );
-      console.log(`✅ Contacto emergencia: registrado`);
     }
 
-    // 4.6) Metas personales (Dynamic_hv_metas_personales)
+    // 4.6 Metas personales
     if (metas_personales) {
       await conn.query(
-        `
-        INSERT INTO Dynamic_hv_metas_personales (
-          id_aspirante,
-          meta_corto_plazo,
-          meta_mediano_plazo,
-          meta_largo_plazo
-        )
-        VALUES (?, ?, ?, ?)
-        `,
+        `INSERT INTO Dynamic_hv_metas_personales (id_aspirante, meta_corto_plazo, meta_mediano_plazo, meta_largo_plazo)
+         VALUES (?, ?, ?, ?)`,
         [
           idAspirante,
           metas_personales.corto_plazo || null,
@@ -1069,35 +981,17 @@ app.post("/api/hv/registrar", async (req, res) => {
           metas_personales.largo_plazo || null
         ]
       );
-      console.log(`✅ Metas personales: registradas`);
     }
 
-    // 4.7) Seguridad / cuestionario personal (Dynamic_hv_seguridad)
+    // 4.7 Seguridad
     if (seguridad) {
       await conn.query(
-        `
-        INSERT INTO Dynamic_hv_seguridad (
-          id_aspirante,
-          llamados_atencion,
-          detalle_llamados,
-          accidente_laboral,
-          detalle_accidente,
-          enfermedad_importante,
-          detalle_enfermedad,
-          consume_alcohol,
-          frecuencia_alcohol,
-          familiar_en_empresa,
-          detalle_familiar_empresa,
-          info_falsa,
-          acepta_poligrafo,
-          observaciones,
-          califica_para_cargo,
-          fortalezas,
-          aspectos_mejorar,
-          resolucion_problemas
-        )
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-        `,
+        `INSERT INTO Dynamic_hv_seguridad (
+          id_aspirante, llamados_atencion, detalle_llamados, accidente_laboral, detalle_accidente,
+          enfermedad_importante, detalle_enfermedad, consume_alcohol, frecuencia_alcohol,
+          familiar_en_empresa, detalle_familiar_empresa, info_falsa, acepta_poligrafo,
+          observaciones, califica_para_cargo, fortalezas, aspectos_mejorar, resolucion_problemas
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           idAspirante,
           seguridad.llamados_atencion || null,
@@ -1119,179 +1013,92 @@ app.post("/api/hv/registrar", async (req, res) => {
           seguridad.resolucion_problemas || null
         ]
       );
-      console.log(`✅ Seguridad: registrada`);
     }
 
-    // ========== 5. CONSTRUIR DATOS PARA EL PDF ==========
-    console.log(`📊 Preparando datos para PDF...`);
+    // ========== 5. CONFIRMAR TRANSACCIÓN DE BASE DE DATOS ==========
+    await conn.commit();
+    transactionCommitted = true;
+    console.log(`✅ Transacción de BD completada para: ${identificacion}`);
 
-    function toHtmlList(items, renderer) {
-      if (!Array.isArray(items) || items.length === 0) return "<div class='small'>No registrado</div>";
-      return items.map((it, i) => `<div class="list-item"><strong>${i + 1}.</strong> ${renderer(it)}</div>`).join("");
-    }
-
-    const EDUCACION_LIST = toHtmlList(
-      educacion,
-      e => `${escapeHtml(e.institucion || "")} — ${escapeHtml(e.programa || "")} (${escapeHtml(e.modalidad || "-")}) ${e.ano ? `• ${escapeHtml(String(e.ano))}` : ""}`
-    );
-
-    const EXPERIENCIA_LIST = toHtmlList(
-      experiencia_laboral,
-      ex => `${escapeHtml(ex.empresa || "")} — ${escapeHtml(ex.cargo || "")}<br><span class="small">${escapeHtml(ex.tiempo_laborado || "")} • ${escapeHtml(ex.funciones || "")}</span>`
-    );
-
-    const REFERENCIAS_LIST = toHtmlList(
-      referencias,
-      r => {
-        if ((r.tipo_referencia || "").toLowerCase().includes("laboral")) {
-          return `${escapeHtml(r.empresa || "")} — ${escapeHtml(r.jefe_inmediato || "")} (${escapeHtml(r.telefono || "")})`;
-        }
-        return `${escapeHtml(r.nombre_completo || "")} — ${escapeHtml(r.telefono || "")} ${escapeHtml(r.ocupacion || "") ? "• " + escapeHtml(r.ocupacion) : ""}`;
-      }
-    );
-
-    const FAMILIARES_LIST = toHtmlList(
-      familiares,
-      f => `${escapeHtml(f.nombre_completo || "")} — ${escapeHtml(f.parentesco || "")} • ${escapeHtml(String(f.edad || ""))}`
-    );
-
-    const CONTACTO_HTML = contacto_emergencia && contacto_emergencia.nombre_completo
-      ? `${escapeHtml(contacto_emergencia.nombre_completo)} • ${escapeHtml(contacto_emergencia.telefono || "")} • ${escapeHtml(contacto_emergencia.correo_electronico || "")}`
-      : "";
-
-    // Construir METAS_HTML enumerada
-    const metasObj = metas_personales || {};
-    const metasItems = [];
-    const m1 = metasObj.meta_corto_plazo || metasObj.corto_plazo || "";
-    const m2 = metasObj.meta_mediano_plazo || metasObj.mediano_plazo || "";
-    const m3 = metasObj.meta_largo_plazo || metasObj.largo_plazo || "";
-    if (m1 && m1.trim()) metasItems.push(m1.trim());
-    if (m2 && m2.trim()) metasItems.push(m2.trim());
-    if (m3 && m3.trim()) metasItems.push(m3.trim());
-
-    let METAS_HTML;
-    if (metasItems.length === 0) {
-      METAS_HTML = "<div class='small'>No registrado</div>";
-    } else {
-      METAS_HTML = metasItems.map((txt, i) =>
-        `<div class="list-item"><strong>${i + 1}.</strong> ${escapeHtml(txt)}</div>`
-      ).join("");
-    }
-
-    function siNo(valor) {
-      if (valor === null || valor === undefined) return "";
-      return valor == 1 ? "Sí" : "No";
-    }
-
-    // Construir dataObjects para la plantilla del PDF
-    const aspiranteData = {
-      NOMBRE_COMPLETO: `${escapeHtml(primer_nombre || "")} ${escapeHtml(primer_apellido || "")}`.trim(),
-      TIPO_ID: escapeHtml(tipo_documento || ""),
-      IDENTIFICACION: escapeHtml(identificacion || ""),
-      CIUDAD_RESIDENCIA: escapeHtml(ciudad_residencia || datosAspirante.ciudad || ""),
-      TELEFONO: escapeHtml(telefono || datosAspirante.telefono || ""),
-      CORREO: escapeHtml(correo_electronico || datosAspirante.correo_electronico || ""),
-      DIRECCION: escapeHtml(direccion_barrio || datosAspirante.direccion_barrio || ""),
-      FECHA_NACIMIENTO: escapeHtml(fecha_nacimiento || ""),
-      ESTADO_CIVIL: escapeHtml(estado_civil || ""),
-      EPS: escapeHtml(eps || ""),
-      AFP: escapeHtml(afp || ""),
-      RH: escapeHtml(rh || ""),
-      CAMISA_TALLA: escapeHtml(camisa_talla || ""),
-      TALLA_PANTALON: escapeHtml(talla_pantalon || ""),
-      ZAPATOS_TALLA: escapeHtml(zapatos_talla || ""),
-      PHOTO_URL: datosAspirante.foto_public_url || "",
-      EDUCACION_LIST,
-      EXPERIENCIA_LIST,
-      REFERENCIAS_LIST,
-      FAMILIARES_LIST,
-      CONTACTO_EMERGENCIA: CONTACTO_HTML,
-      METAS: METAS_HTML,
-      FECHA_GENERACION: new Date().toLocaleString(),
-      LOGO_URL: process.env.LOGO_PUBLIC_URL || "https://storage.googleapis.com/logyser-recibo-public/logo.png",
-      SEG_LLAMADOS: siNo(seguridad && seguridad.llamados_atencion),
-      SEG_DETALLE_LLAMADOS: escapeHtml((seguridad && seguridad.detalle_llamados) || ""),
-      SEG_ACCIDENTE: siNo(seguridad && seguridad.accidente_laboral),
-      SEG_DETALLE_ACCIDENTE: escapeHtml((seguridad && seguridad.detalle_accidente) || ""),
-      SEG_ENFERMEDAD: siNo(seguridad && seguridad.enfermedad_importante),
-      SEG_DETALLE_ENFERMEDAD: escapeHtml((seguridad && seguridad.detalle_enfermedad) || ""),
-      SEG_ALCOHOL: siNo(seguridad && seguridad.consume_alcohol),
-      SEG_FRECUENCIA: escapeHtml((seguridad && seguridad.frecuencia_alcohol) || ""),
-      SEG_FAMILIAR: siNo(seguridad && seguridad.familiar_en_empresa),
-      SEG_DETALLE_FAMILIAR: escapeHtml((seguridad && seguridad.detalle_familiar_empresa) || ""),
-      SEG_INFO_FALSA: siNo(seguridad && seguridad.info_falsa),
-      SEG_POLIGRAFO: siNo(seguridad && seguridad.acepta_poligrafo),
-      SEG_FORTALEZAS: escapeHtml((seguridad && seguridad.fortalezas) || ""),
-      SEG_MEJORAR: escapeHtml((seguridad && seguridad.aspectos_mejorar) || ""),
-      SEG_RESOLUCION: escapeHtml((seguridad && seguridad.resolucion_problemas) || ""),
-      SEG_OBSERVACIONES: escapeHtml((seguridad && seguridad.observaciones) || "")
-    };
-
-    // ========== 6. GENERAR Y SUBIR PDF ==========
+    // ========== 6. INTENTAR GENERAR PDF (FUERA DE LA TRANSACCIÓN) ==========
     let pdfResult = null;
+    let pdfError = null;
     let pdfUrl = null;
 
-    console.log(`🔄 Intentando generar PDF para: ${identificacion}`);
-
-    if (!bucket) {
-      console.warn("⚠️ Bucket no disponible, omitiendo generación de PDF");
-    } else {
+    if (bucket && identificacion) {
       try {
-        console.log(`📁 Bucket disponible: ${GCS_BUCKET}`);
+        console.log(`📄 Preparando para generar PDF para: ${identificacion}`);
 
-        // IMPORTANTE: Pasar el parámetro deleteOldFiles: false ya que ya limpiamos manualmente
-        pdfResult = await generateAndUploadPdf({
+        // Preparar datos para el PDF (simplificado para evitar errores)
+        const datosPDF = {
+          NOMBRE_COMPLETO: `${primer_nombre || ''} ${primer_apellido || ''}`.trim(),
+          IDENTIFICACION: identificacion || '',
+          TELEFONO: telefono || '',
+          CORREO: correo_electronico || '',
+          DIRECCION: direccion_barrio || '',
+          FECHA_GENERACION: new Date().toLocaleString('es-CO'),
+          LOGO_URL: process.env.LOGO_PUBLIC_URL || "https://storage.googleapis.com/logyser-recibo-public/logo.png"
+        };
+
+        // Intentar generar PDF con timeout
+        const pdfPromise = generateAndUploadPdf({
           identificacion,
-          dataObjects: aspiranteData,
+          dataObjects: datosPDF,
           bucket,
           bucketName: GCS_BUCKET,
-          deleteOldFiles: false  // Ya limpiamos manualmente al inicio
+          deleteOldFiles: false // Ya manejamos esto antes
         });
 
-        pdfUrl = pdfResult.publicUrl;
-
-        console.log(`✅ PDF generado exitosamente:`);
-        console.log(`   📁 Ruta: ${pdfResult.destName}`);
-        console.log(`   🔗 URL: ${pdfUrl}`);
-
-        // Guardar en DB
-        await conn.query(
-          `UPDATE Dynamic_hv_aspirante SET 
-            pdf_gcs_path = ?,
-            pdf_public_url = ?
-          WHERE identificacion = ?`,
-          [pdfResult.destName, pdfUrl, identificacion]
+        // Timeout de 45 segundos
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('TIMEOUT_GENERANDO_PDF')), 45000)
         );
 
-      } catch (pdfError) {
-        console.error(`❌ Error generando PDF: ${pdfError.message}`);
-        console.error(`🔍 Detalles del error:`, pdfError.stack);
+        pdfResult = await Promise.race([pdfPromise, timeoutPromise]);
+        pdfUrl = pdfResult?.publicUrl;
 
-        // Verificar si es un error específico de permisos
-        if (pdfError.message.includes('permission') || pdfError.message.includes('PERMISSION_DENIED')) {
-          console.warn(`🔐 Posible problema de permisos en GCS`);
+        if (pdfUrl) {
+          console.log(`✅ PDF generado exitosamente: ${pdfUrl}`);
+
+          // Actualizar BD con la nueva URL del PDF
+          await conn.query(
+            `UPDATE Dynamic_hv_aspirante SET 
+              pdf_gcs_path = ?,
+              pdf_public_url = ?,
+              pdf_error = NULL
+            WHERE identificacion = ?`,
+            [pdfResult.destName, pdfUrl, identificacion]
+          );
         }
 
-        pdfUrl = null;
+      } catch (pdfGenError) {
+        console.error(`❌ Error generando PDF: ${pdfGenError.message}`);
+        pdfError = pdfGenError.message;
 
-        // IMPORTANTE: No hacemos rollback por error de PDF
-        // Los datos del aspirante YA están guardados en la BD
-        console.log(`⚠️ Continuando sin PDF generado. Datos guardados en BD.`);
+        // Registrar error en BD pero no fallar
+        try {
+          await conn.query(
+            `UPDATE Dynamic_hv_aspirante SET 
+              pdf_error = ?
+            WHERE identificacion = ?`,
+            [pdfError, identificacion]
+          );
+        } catch (dbError) {
+          console.warn(`⚠️ No se pudo registrar error de PDF en BD: ${dbError.message}`);
+        }
       }
+    } else {
+      pdfError = bucket ? 'IDENTIFICACION_NO_DISPONIBLE' : 'BUCKET_NO_CONFIGURADO';
+      console.warn(`⚠️ No se generará PDF: ${pdfError}`);
     }
 
-    // ========== 7. CONFIRMAR TRANSACCIÓN ==========
-    await conn.commit();
-    console.log(`✅ Transacción completada para: ${identificacion}`);
-
-    // ========== 8. ENVIAR CORREO ==========
-    if (pdfUrl) {
-      try {
-        console.log(`📧 Enviando correo con PDF...`);
-
-        // Importar dinámicamente para evitar dependencia circular
-        import('./send-to-email.js').then(async (module) => {
-          await module.default({
+    // ========== 7. ENVIAR CORREO (ASINCRÓNICO, NO BLOQUEA) ==========
+    if (pdfUrl && correo_electronico) {
+      // Enviar en segundo plano
+      setTimeout(async () => {
+        try {
+          const sendEmailModule = await import('./send-to-email.js');
+          await sendEmailModule.default({
             nombre: `${primer_nombre} ${primer_apellido}`.trim(),
             identificacion,
             correo: correo_electronico,
@@ -1299,47 +1106,92 @@ app.post("/api/hv/registrar", async (req, res) => {
             pdf_url: pdfUrl,
             timestamp: new Date().toLocaleString('es-CO')
           });
-          console.log("✅ Correo enviado exitosamente");
-        }).catch(emailError => {
-          console.error("⚠️ Error enviando correo:", emailError.message);
-        });
-      } catch (mailError) {
-        console.error("⚠️ Error en envío de correo:", mailError);
-      }
-    } else {
-      console.log("⚠️ No hay URL de PDF, omitiendo envío de correo");
+          console.log(`📧 Correo enviado exitosamente a ${correo_electronico}`);
+        } catch (emailError) {
+          console.error(`⚠️ Error enviando correo: ${emailError.message}`);
+        }
+      }, 1000);
     }
 
-    // ========== 9. RESPONDER AL CLIENTE ==========
-    res.json({
+    // ========== 8. CONSTRUIR RESPUESTA AL CLIENTE ==========
+    const respuesta = {
       ok: true,
-      message: "Hoja de vida registrada correctamente",
+      message: "Hoja de vida registrada exitosamente",
       id_aspirante: idAspirante,
-      pdf_generado: !!pdfUrl,
-      pdf_url: pdfUrl || null,
-      identificacion: identificacion
-    });
+      identificacion: identificacion,
+      timestamp: ahora.toISOString(),
+      datos_guardados: true
+    };
+
+    // Agregar información del PDF
+    if (pdfUrl) {
+      respuesta.pdf = {
+        generado: true,
+        url: pdfUrl,
+        ruta: pdfResult?.destName
+      };
+    } else if (pdfError) {
+      respuesta.pdf = {
+        generado: false,
+        error: pdfError.includes('TIMEOUT') ? 'timeout' : 'error_generacion',
+        mensaje: pdfError
+      };
+      respuesta.message = "Hoja de vida registrada, pero el PDF no pudo ser generado";
+    } else {
+      respuesta.pdf = {
+        generado: false,
+        error: 'no_configurado',
+        mensaje: 'Servicio de PDF no disponible'
+      };
+    }
+
+    console.log(`📤 Enviando respuesta exitosa para ${identificacion}`);
+    return res.json(respuesta);
 
   } catch (error) {
-    console.error("❌ Error registrando HV:", error);
-    console.error("📋 Stack trace:", error.stack);
+    console.error("❌ Error en /api/hv/registrar:", error);
 
-    try {
-      await conn.rollback();
-      console.log("↩️ Transacción revertida debido a error");
-    } catch (rollbackError) {
-      console.error("❌ Error al hacer rollback:", rollbackError);
+    // Revertir transacción si no fue commitida
+    if (!transactionCommitted) {
+      try {
+        await conn.rollback();
+        console.log("↩️ Transacción revertida");
+      } catch (rollbackError) {
+        console.error("❌ Error en rollback:", rollbackError);
+      }
     }
 
-    res.status(500).json({
+    // Construir respuesta de error EN JSON
+    const errorResponse = {
       ok: false,
-      error: "Error registrando hoja de vida",
-      details: error.message,
-      identificacion: identificacion || null
-    });
+      error: "Error procesando la solicitud",
+      message: error.message,
+      identificacion: identificacion || null,
+      timestamp: new Date().toISOString()
+    };
+
+    // Clasificar errores comunes
+    if (error.message.includes('timeout') || error.message.includes('TIMEOUT')) {
+      errorResponse.tipo_error = 'timeout';
+      errorResponse.sugerencia = 'Intente nuevamente en unos momentos';
+    } else if (error.message.includes('duplicate') || error.message.includes('DUPLICATE')) {
+      errorResponse.tipo_error = 'duplicado';
+      errorResponse.sugerencia = 'El registro ya existe';
+    } else if (error.message.includes('connection') || error.message.includes('CONNECTION')) {
+      errorResponse.tipo_error = 'conexion';
+      errorResponse.sugerencia = 'Verifique su conexión a internet';
+    }
+
+    console.log(`📤 Enviando respuesta de error para ${identificacion}`);
+    return res.status(500).json(errorResponse);
+
   } finally {
+    // Liberar conexión siempre
     try {
-      conn.release();
+      if (conn) {
+        await conn.release();
+        console.log(`🔓 Conexión liberada para: ${identificacion}`);
+      }
     } catch (releaseError) {
       console.error("❌ Error liberando conexión:", releaseError);
     }
