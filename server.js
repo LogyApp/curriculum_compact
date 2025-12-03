@@ -624,8 +624,23 @@ app.post("/api/hv/upload-photo", upload.single("photo"), async (req, res) => {
 app.post("/api/hv/registrar", async (req, res) => {
   console.log("📝 HV Registrar endpoint hit");
 
+  // ========== HEADERS CORS EXPLÍCITOS ==========
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+
   const body = req.body;
   const datosAspirante = body || {};
+
+  // Validación mínima requerida
+  if (!datosAspirante.identificacion) {
+    return res.status(400).json({
+      ok: false,
+      error: "Identificación requerida",
+      details: "El número de identificación es obligatorio"
+    });
+  }
 
   const {
     // Datos personales (Dynamic_hv_aspirante)
@@ -652,7 +667,7 @@ app.post("/api/hv/registrar", async (req, res) => {
     talla_pantalon,
     camisa_talla,
     zapatos_talla,
-    origen_registro,
+    origen_registro = "WEB",
     medio_reclutamiento,
     recomendador_aspirante,
 
@@ -667,6 +682,7 @@ app.post("/api/hv/registrar", async (req, res) => {
   } = datosAspirante;
 
   const conn = await pool.getConnection();
+  let transactionCommitted = false;
 
   try {
     await conn.beginTransaction();
@@ -689,54 +705,50 @@ app.post("/api/hv/registrar", async (req, res) => {
 
         console.log(`📄 Aspirante existente encontrado. ID: ${idAspirante}`);
         if (pdf_gcs_path_anterior) {
-          console.log(`📁 PDF anterior en GCS: ${pdf_gcs_path_anterior}`);
+          console.log(`📁 PDF anterior en BD: ${pdf_gcs_path_anterior}`);
         }
       }
     }
 
-    // ========== 2. LIMPIAR PDFs ANTIGUOS DE GCS (ANTES DE CUALQUIER OPERACIÓN) ==========
-    if (identificacion && bucket) {
+    // ========== 2. PASO CRÍTICO: LIMPIAR CAMPOS DE PDF EN LA BD (ANTES DE CUALQUIER COSA) ==========
+    console.log(`🧹 PASO 2: Limpiando campos de PDF en la BD para ${identificacion}...`);
+
+    if (idAspirante) {
+      // Si ya existe, primero limpiamos los campos de PDF en la BD
+      await conn.query(
+        `UPDATE Dynamic_hv_aspirante SET 
+          pdf_gcs_path = NULL,
+          pdf_public_url = NULL,
+          pdf_error = NULL
+        WHERE identificacion = ?`,
+        [identificacion]
+      );
+      console.log(`✅ Campos de PDF limpiados en BD para ${identificacion}`);
+    }
+
+    // ========== 3. LIMPIAR PDFs ANTIGUOS DE GCS (SI EXISTEN) ==========
+    if (identificacion && bucket && pdf_gcs_path_anterior) {
       try {
-        console.log(`🧹 Limpiando PDFs antiguos para: ${identificacion}`);
+        console.log(`🗑️ Intentando eliminar archivo físico de GCS: ${pdf_gcs_path_anterior}`);
 
-        // Listar todos los PDFs en la carpeta del aspirante
-        const [files] = await bucket.getFiles({
-          prefix: `${identificacion}/`
-        });
+        const oldFile = bucket.file(pdf_gcs_path_anterior);
+        const [exists] = await oldFile.exists();
 
-        if (files.length > 0) {
-          console.log(`📁 Encontrados ${files.length} archivos en carpeta ${identificacion}/`);
-
-          // Filtrar solo PDFs
-          const pdfFiles = files.filter(file => file.name.endsWith('.pdf'));
-
-          if (pdfFiles.length > 0) {
-            console.log(`🗑️ Eliminando ${pdfFiles.length} PDFs antiguos...`);
-
-            // Eliminar en paralelo pero con manejo de errores individual
-            await Promise.all(
-              pdfFiles.map(async (file) => {
-                try {
-                  console.log(`   🗑️ Intentando eliminar: ${file.name}`);
-                  await file.delete();
-                  console.log(`   ✅ Eliminado: ${file.name}`);
-                } catch (deleteError) {
-                  console.warn(`   ⚠️ No se pudo eliminar ${file.name}: ${deleteError.message}`);
-                  // Continuar aunque falle la eliminación de un archivo
-                }
-              })
-            );
-
-            console.log(`✅ Limpieza de PDFs completada para ${identificacion}`);
-          }
+        if (exists) {
+          await oldFile.delete();
+          console.log(`✅ Archivo eliminado de GCS: ${pdf_gcs_path_anterior}`);
+        } else {
+          console.log(`ℹ️ Archivo no encontrado en GCS: ${pdf_gcs_path_anterior}`);
         }
-      } catch (cleanupError) {
-        console.warn(`⚠️ Error en limpieza de PDFs: ${cleanupError.message}`);
-        // NO hacer rollback, solo continuar
+      } catch (gcsDeleteError) {
+        console.warn(`⚠️ No se pudo eliminar archivo de GCS: ${gcsDeleteError.message}`);
+        // NO es crítico, continuamos
       }
     }
 
-    // ========== 3. INSERTAR/ACTUALIZAR ASPIRANTE ==========
+    // ========== 4. INSERTAR/ACTUALIZAR ASPIRANTE ==========
+    const ahora = new Date();
+
     if (idAspirante) {
       // --- Caso: ya existe -> hacemos UPDATE y reinsertamos hijos ---
       await conn.query(
@@ -754,8 +766,8 @@ app.post("/api/hv/registrar", async (req, res) => {
           fecha_expedicion = ?,
           estado_civil = ?,
           direccion_barrio = ?,
-          departamento = ?,       -- se usa la columna 'departamento' para departamento_residencia
-          ciudad = ?,            -- se usa la columna 'ciudad' para ciudad_residencia
+          departamento = ?,
+          ciudad = ?,
           telefono = ?,
           correo_electronico = ?,
           eps = ?,
@@ -769,7 +781,7 @@ app.post("/api/hv/registrar", async (req, res) => {
           origen_registro = ?,
           medio_reclutamiento = ?,
           recomendador_aspirante = ?,
-          fecha_actualizacion = NOW()
+          fecha_actualizacion = ?
         WHERE id_aspirante = ?
         `,
         [
@@ -797,22 +809,26 @@ app.post("/api/hv/registrar", async (req, res) => {
           zapatos_talla || null,
           datosAspirante.foto_gcs_path || null,
           datosAspirante.foto_public_url || null,
-          origen_registro || "WEB",
+          origen_registro,
           medio_reclutamiento || null,
           recomendador_aspirante || null,
+          ahora,
           idAspirante
         ]
       );
 
-      // Borrar datos hijos existentes para ese aspirante (los volveremos a insertar)
-      await conn.query(`DELETE FROM Dynamic_hv_educacion WHERE id_aspirante = ?`, [idAspirante]);
-      await conn.query(`DELETE FROM Dynamic_hv_experiencia_laboral WHERE id_aspirante = ?`, [idAspirante]);
-      await conn.query(`DELETE FROM Dynamic_hv_familiares WHERE id_aspirante = ?`, [idAspirante]);
-      await conn.query(`DELETE FROM Dynamic_hv_referencias WHERE id_aspirante = ?`, [idAspirante]);
-      await conn.query(`DELETE FROM Dynamic_hv_contacto_emergencia WHERE id_aspirante = ?`, [idAspirante]);
-      await conn.query(`DELETE FROM Dynamic_hv_metas_personales WHERE id_aspirante = ?`, [idAspirante]);
-      await conn.query(`DELETE FROM Dynamic_hv_seguridad WHERE id_aspirante = ?`, [idAspirante]);
+      // Borrar datos hijos existentes para ese aspirante
+      const deleteQueries = [
+        conn.query(`DELETE FROM Dynamic_hv_educacion WHERE id_aspirante = ?`, [idAspirante]),
+        conn.query(`DELETE FROM Dynamic_hv_experiencia_laboral WHERE id_aspirante = ?`, [idAspirante]),
+        conn.query(`DELETE FROM Dynamic_hv_familiares WHERE id_aspirante = ?`, [idAspirante]),
+        conn.query(`DELETE FROM Dynamic_hv_referencias WHERE id_aspirante = ?`, [idAspirante]),
+        conn.query(`DELETE FROM Dynamic_hv_contacto_emergencia WHERE id_aspirante = ?`, [idAspirante]),
+        conn.query(`DELETE FROM Dynamic_hv_metas_personales WHERE id_aspirante = ?`, [idAspirante]),
+        conn.query(`DELETE FROM Dynamic_hv_seguridad WHERE id_aspirante = ?`, [idAspirante])
+      ];
 
+      await Promise.all(deleteQueries);
       console.log(`✅ Aspirante actualizado: ${identificacion}`);
 
     } else {
@@ -850,7 +866,7 @@ app.post("/api/hv/registrar", async (req, res) => {
           recomendador_aspirante,
           fecha_registro
         )
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, NOW())
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
           tipo_documento || null,
@@ -878,9 +894,10 @@ app.post("/api/hv/registrar", async (req, res) => {
           zapatos_talla || null,
           datosAspirante.foto_gcs_path || null,
           datosAspirante.foto_public_url || null,
-          origen_registro || "WEB",
+          origen_registro,
           medio_reclutamiento || null,
-          recomendador_aspirante || null
+          recomendador_aspirante || null,
+          ahora
         ]
       );
 
@@ -898,9 +915,9 @@ app.post("/api/hv/registrar", async (req, res) => {
       throw new Error("No se pudo obtener id_aspirante después de insert/update");
     }
 
-    // ========== 4. INSERTAR DATOS RELACIONADOS ==========
+    // ========== 5. INSERTAR DATOS RELACIONADOS ==========
 
-    // 4.1) Educación (Dynamic_hv_educacion)
+    // 5.1) Educación (Dynamic_hv_educacion)
     for (const edu of educacion) {
       if (!edu.institucion && !edu.programa) continue;
 
@@ -930,7 +947,7 @@ app.post("/api/hv/registrar", async (req, res) => {
     }
     console.log(`✅ Educación: ${educacion.length} registros`);
 
-    // 4.2) Experiencia laboral (Dynamic_hv_experiencia_laboral)
+    // 5.2) Experiencia laboral (Dynamic_hv_experiencia_laboral)
     for (const exp of experiencia_laboral) {
       if (!exp.empresa && !exp.cargo) continue;
 
@@ -960,7 +977,7 @@ app.post("/api/hv/registrar", async (req, res) => {
     }
     console.log(`✅ Experiencia: ${experiencia_laboral.length} registros`);
 
-    // 4.3) Familiares (Dynamic_hv_familiares)
+    // 5.3) Familiares (Dynamic_hv_familiares)
     for (const fam of familiares) {
       if (!fam.nombre_completo) continue;
 
@@ -988,7 +1005,7 @@ app.post("/api/hv/registrar", async (req, res) => {
     }
     console.log(`✅ Familiares: ${familiares.length} registros`);
 
-    // 4.4) Referencias (Dynamic_hv_referencias)
+    // 5.4) Referencias (Dynamic_hv_referencias)
     for (const ref of referencias) {
       if (!ref.tipo_referencia) continue;
 
@@ -1020,7 +1037,7 @@ app.post("/api/hv/registrar", async (req, res) => {
     }
     console.log(`✅ Referencias: ${referencias.length} registros`);
 
-    // 4.5) Contacto de emergencia (Dynamic_hv_contacto_emergencia)
+    // 5.5) Contacto de emergencia (Dynamic_hv_contacto_emergencia)
     if (contacto_emergencia && contacto_emergencia.nombre_completo) {
       await conn.query(
         `
@@ -1046,7 +1063,7 @@ app.post("/api/hv/registrar", async (req, res) => {
       console.log(`✅ Contacto emergencia: registrado`);
     }
 
-    // 4.6) Metas personales (Dynamic_hv_metas_personales)
+    // 5.6) Metas personales (Dynamic_hv_metas_personales)
     if (metas_personales) {
       await conn.query(
         `
@@ -1068,7 +1085,7 @@ app.post("/api/hv/registrar", async (req, res) => {
       console.log(`✅ Metas personales: registradas`);
     }
 
-    // 4.7) Seguridad / cuestionario personal (Dynamic_hv_seguridad)
+    // 5.7) Seguridad / cuestionario personal (Dynamic_hv_seguridad)
     if (seguridad) {
       await conn.query(
         `
@@ -1118,7 +1135,7 @@ app.post("/api/hv/registrar", async (req, res) => {
       console.log(`✅ Seguridad: registrada`);
     }
 
-    // ========== 5. CONSTRUIR DATOS PARA EL PDF ==========
+    // ========== 6. CONSTRUIR DATOS PARA EL PDF ==========
     console.log(`📊 Preparando datos para PDF...`);
 
     function toHtmlList(items, renderer) {
@@ -1223,71 +1240,84 @@ app.post("/api/hv/registrar", async (req, res) => {
       SEG_OBSERVACIONES: escapeHtml((seguridad && seguridad.observaciones) || "")
     };
 
-    // ========== 6. GENERAR Y SUBIR PDF ==========
+    // ========== 7. CONFIRMAR TRANSACCIÓN DE BD ==========
+    await conn.commit();
+    transactionCommitted = true;
+    console.log(`✅ Transacción de BD completada para: ${identificacion}`);
+
+    // ========== 8. GENERAR Y SUBIR PDF (FUERA DE LA TRANSACCIÓN) ==========
     let pdfResult = null;
     let pdfUrl = null;
+    let pdfError = null;
 
     console.log(`🔄 Intentando generar PDF para: ${identificacion}`);
 
     if (!bucket) {
       console.warn("⚠️ Bucket no disponible, omitiendo generación de PDF");
+      pdfError = "Bucket no configurado";
     } else {
       try {
         console.log(`📁 Bucket disponible: ${GCS_BUCKET}`);
 
-        // IMPORTANTE: Pasar el parámetro deleteOldFiles: false ya que ya limpiamos manualmente
-        pdfResult = await generateAndUploadPdf({
+        // Generar PDF con timeout
+        const pdfPromise = generateAndUploadPdf({
           identificacion,
           dataObjects: aspiranteData,
           bucket,
           bucketName: GCS_BUCKET,
-          deleteOldFiles: false  // Ya limpiamos manualmente al inicio
+          deleteOldFiles: false // Ya manejamos la limpieza al inicio
         });
 
+        // Timeout de 60 segundos
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('TIMEOUT_GENERANDO_PDF')), 60000)
+        );
+
+        pdfResult = await Promise.race([pdfPromise, timeoutPromise]);
         pdfUrl = pdfResult.publicUrl;
 
         console.log(`✅ PDF generado exitosamente:`);
         console.log(`   📁 Ruta: ${pdfResult.destName}`);
         console.log(`   🔗 URL: ${pdfUrl}`);
 
-        // Guardar en DB
+        // Actualizar BD con la nueva URL del PDF
         await conn.query(
           `UPDATE Dynamic_hv_aspirante SET 
             pdf_gcs_path = ?,
-            pdf_public_url = ?
+            pdf_public_url = ?,
+            pdf_error = NULL
           WHERE identificacion = ?`,
           [pdfResult.destName, pdfUrl, identificacion]
         );
 
-      } catch (pdfError) {
-        console.error(`❌ Error generando PDF: ${pdfError.message}`);
-        console.error(`🔍 Detalles del error:`, pdfError.stack);
+      } catch (pdfGenError) {
+        console.error(`❌ Error generando PDF: ${pdfGenError.message}`);
+        pdfError = pdfGenError.message;
 
-        // Verificar si es un error específico de permisos
-        if (pdfError.message.includes('permission') || pdfError.message.includes('PERMISSION_DENIED')) {
-          console.warn(`🔐 Posible problema de permisos en GCS`);
+        // Registrar error en BD
+        try {
+          await conn.query(
+            `UPDATE Dynamic_hv_aspirante SET 
+              pdf_error = ?
+            WHERE identificacion = ?`,
+            [pdfError, identificacion]
+          );
+          console.log(`📝 Error de PDF registrado en BD para ${identificacion}`);
+        } catch (dbError) {
+          console.warn(`⚠️ No se pudo registrar error de PDF en BD: ${dbError.message}`);
         }
 
-        pdfUrl = null;
-
-        // IMPORTANTE: No hacemos rollback por error de PDF
-        // Los datos del aspirante YA están guardados en la BD
-        console.log(`⚠️ Continuando sin PDF generado. Datos guardados en BD.`);
+        console.log(`⚠️ Continuando sin PDF generado. Datos del aspirante guardados en BD.`);
       }
     }
 
-    // ========== 7. CONFIRMAR TRANSACCIÓN ==========
-    await conn.commit();
-    console.log(`✅ Transacción completada para: ${identificacion}`);
-
-    // ========== 8. ENVIAR CORREO ==========
+    // ========== 9. ENVIAR CORREO (ASINCRÓNICO) ==========
     if (pdfUrl) {
-      try {
-        console.log(`📧 Enviando correo con PDF...`);
-
-        // Importar dinámicamente para evitar dependencia circular
-        import('./send-to-email.js').then(async (module) => {
-          await module.default({
+      // Enviar en segundo plano
+      setTimeout(async () => {
+        try {
+          const sendEmailModule = await import('./send-to-email.js');
+          await sendEmailModule.default({
             nombre: `${primer_nombre} ${primer_apellido}`.trim(),
             identificacion,
             correo: correo_electronico,
@@ -1296,51 +1326,141 @@ app.post("/api/hv/registrar", async (req, res) => {
             timestamp: new Date().toLocaleString('es-CO')
           });
           console.log("✅ Correo enviado exitosamente");
-        }).catch(emailError => {
+        } catch (emailError) {
           console.error("⚠️ Error enviando correo:", emailError.message);
-        });
-      } catch (mailError) {
-        console.error("⚠️ Error en envío de correo:", mailError);
-      }
-    } else {
+        }
+      }, 1000);
+    } else if (correo_electronico) {
       console.log("⚠️ No hay URL de PDF, omitiendo envío de correo");
     }
 
-    // ========== 9. RESPONDER AL CLIENTE ==========
-    res.json({
+    // ========== 10. RESPONDER AL CLIENTE ==========
+    const respuesta = {
       ok: true,
       message: "Hoja de vida registrada correctamente",
       id_aspirante: idAspirante,
-      pdf_generado: !!pdfUrl,
-      pdf_url: pdfUrl || null,
-      identificacion: identificacion
-    });
+      identificacion: identificacion,
+      datos_guardados: true
+    };
+
+    // Agregar información del PDF
+    if (pdfUrl) {
+      respuesta.pdf_generado = true;
+      respuesta.pdf_url = pdfUrl;
+      respuesta.pdf_ruta = pdfResult?.destName;
+    } else {
+      respuesta.pdf_generado = false;
+      if (pdfError) {
+        respuesta.pdf_error = pdfError;
+        respuesta.message = "Hoja de vida registrada, pero hubo un error generando el PDF";
+      }
+    }
+
+    console.log(`📤 Respondiendo al cliente: ${JSON.stringify(respuesta, null, 2)}`);
+    return res.json(respuesta);
 
   } catch (error) {
     console.error("❌ Error registrando HV:", error);
     console.error("📋 Stack trace:", error.stack);
 
-    try {
-      await conn.rollback();
-      console.log("↩️ Transacción revertida debido a error");
-    } catch (rollbackError) {
-      console.error("❌ Error al hacer rollback:", rollbackError);
+    // Revertir transacción si no fue commitida
+    if (!transactionCommitted) {
+      try {
+        await conn.rollback();
+        console.log("↩️ Transacción revertida debido a error");
+      } catch (rollbackError) {
+        console.error("❌ Error al hacer rollback:", rollbackError);
+      }
     }
 
-    res.status(500).json({
+    // Respuesta de error EN JSON
+    const errorResponse = {
       ok: false,
       error: "Error registrando hoja de vida",
       details: error.message,
-      identificacion: identificacion || null
-    });
+      identificacion: identificacion || null,
+      timestamp: new Date().toISOString()
+    };
+
+    return res.status(500).json(errorResponse);
+
   } finally {
     try {
-      conn.release();
+      if (conn) {
+        await conn.release();
+        console.log(`🔓 Conexión liberada para: ${identificacion}`);
+      }
     } catch (releaseError) {
       console.error("❌ Error liberando conexión:", releaseError);
     }
   }
 });
+
+async function deleteURLFromDB(req, res) {
+  try {
+    const { id } = req.params; // Corrección: debe ser req.params.id
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        error: "Se requiere el parámetro 'id' (identificación)"
+      });
+    }
+
+    console.log(`🗑️ Intentando eliminar URLs de PDF para identificación: ${id}`);
+
+    // Primero, verificar si el usuario existe
+    const [userExists] = await pool.query(
+      `SELECT identificacion FROM Dynamic_hv_aspirante WHERE identificacion = ?`,
+      [id]
+    );
+
+    if (userExists.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: `No se ha encontrado usuario con identificación ${id}`
+      });
+    }
+
+    // Actualizar los campos de PDF a NULL en lugar de eliminarlos
+    const [result] = await pool.query(
+      `UPDATE Dynamic_hv_aspirante 
+       SET pdf_gcs_path = NULL, 
+           pdf_public_url = NULL,
+           pdf_error = NULL,
+           fecha_actualizacion = NOW()
+       WHERE identificacion = ?`,
+      [id]
+    );
+
+    if (result.affectedRows === 0) {
+      // Esto no debería pasar porque ya verificamos que el usuario existe
+      return res.status(500).json({
+        success: false,
+        error: "No se pudieron actualizar los campos de PDF"
+      });
+    }
+
+    console.log(`✅ URLs de PDF eliminadas para identificación: ${id}`);
+
+    return res.status(200).json({
+      success: true,
+      message: `URLs de PDF eliminadas correctamente para ${id}`,
+      affectedRows: result.affectedRows
+    });
+
+  } catch (error) {
+    console.error(`❌ Error en deleteURLFromDB:`, error);
+
+    return res.status(500).json({
+      success: false,
+      error: "Error interno del servidor",
+      details: error.message
+    });
+  }
+}
+
+app.delete('/api/hv/pdf/:id', deleteURLFromDB);
 
 app.use("/api/correo", correoAspiranteRoutes);
 
