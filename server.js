@@ -681,6 +681,14 @@ app.post("/api/hv/registrar", async (req, res) => {
     seguridad = {}
   } = datosAspirante;
 
+  // DEBUG: Verificar estructura de datos recibidos
+  console.log('📋 Datos recibidos para depuración:');
+  console.log('- identificacion:', identificacion);
+  console.log('- departamento_residencia:', departamento_residencia);
+  console.log('- ciudad_residencia:', ciudad_residencia);
+  console.log('- Tiene foto_gcs_path?', 'foto_gcs_path' in datosAspirante);
+  console.log('- Tiene foto_public_url?', 'foto_public_url' in datosAspirante);
+
   const conn = await pool.getConnection();
   let transactionCommitted = false;
 
@@ -707,6 +715,8 @@ app.post("/api/hv/registrar", async (req, res) => {
         if (pdf_gcs_path_anterior) {
           console.log(`📁 PDF anterior en BD: ${pdf_gcs_path_anterior}`);
         }
+      } else {
+        console.log(`🆕 Aspirante no encontrado, se creará nuevo registro`);
       }
     }
 
@@ -748,10 +758,15 @@ app.post("/api/hv/registrar", async (req, res) => {
     // ========== 4. INSERTAR/ACTUALIZAR ASPIRANTE ==========
     const ahora = new Date();
 
+    // Variables para foto (vienen en datosAspirante, no en la desestructuración)
+    const foto_gcs_path = datosAspirante.foto_gcs_path || null;
+    const foto_public_url = datosAspirante.foto_public_url || null;
+
     if (idAspirante) {
       // --- Caso: ya existe -> hacemos UPDATE y reinsertamos hijos ---
-      await conn.query(
-        `
+      console.log(`🔄 Actualizando aspirante existente ID: ${idAspirante}`);
+
+      const updateQuery = `
         UPDATE Dynamic_hv_aspirante SET
           tipo_documento = ?,
           primer_nombre = ?,
@@ -765,8 +780,8 @@ app.post("/api/hv/registrar", async (req, res) => {
           fecha_expedicion = ?,
           estado_civil = ?,
           direccion_barrio = ?,
-          departamento = ?,
-          ciudad = ?,
+          departamento = ?,          -- CORREGIDO: la tabla tiene 'departamento' no 'departamento_residencia'
+          ciudad = ?,                -- CORREGIDO: la tabla tiene 'ciudad' no 'ciudad_residencia'
           telefono = ?,
           correo_electronico = ?,
           eps = ?,
@@ -782,41 +797,45 @@ app.post("/api/hv/registrar", async (req, res) => {
           recomendador_aspirante = ?,
           fecha_actualizacion = ?
         WHERE id_aspirante = ?
-        `,
-        [
-          tipo_documento || null,
-          primer_nombre || null,
-          segundo_nombre || null,
-          primer_apellido || null,
-          segundo_apellido || null,
-          fecha_nacimiento || null,
-          edad || null,
-          departamento_expedicion || null,
-          ciudad_expedicion || null,
-          fecha_expedicion || null,
-          estado_civil || null,
-          direccion_barrio || null,
-          departamento_residencia || null,
-          ciudad_residencia || null,
-          telefono || null,
-          correo_electronico || null,
-          eps || null,
-          afp || null,
-          rh || null,
-          talla_pantalon || null,
-          camisa_talla || null,
-          zapatos_talla || null,
-          datosAspirante.foto_gcs_path || null,
-          datosAspirante.foto_public_url || null,
-          origen_registro,
-          medio_reclutamiento || null,
-          recomendador_aspirante || null,
-          ahora,
-          idAspirante
-        ]
-      );
+      `;
+
+      const updateParams = [
+        tipo_documento || null,
+        primer_nombre || null,
+        segundo_nombre || null,
+        primer_apellido || null,
+        segundo_apellido || null,
+        fecha_nacimiento || null,
+        edad || null,
+        departamento_expedicion || null,
+        ciudad_expedicion || null,
+        fecha_expedicion || null,
+        estado_civil || null,
+        direccion_barrio || null,
+        departamento_residencia || null,  // Se mapea al campo 'departamento'
+        ciudad_residencia || null,        // Se mapea al campo 'ciudad'
+        telefono || null,
+        correo_electronico || null,
+        eps || null,
+        afp || null,
+        rh || null,
+        talla_pantalon || null,
+        camisa_talla || null,
+        zapatos_talla || null,
+        foto_gcs_path,
+        foto_public_url,
+        origen_registro,
+        medio_reclutamiento || null,
+        recomendador_aspirante || null,
+        ahora,
+        idAspirante
+      ];
+
+      console.log('📝 Ejecutando UPDATE con parámetros:', updateParams.length);
+      await conn.query(updateQuery, updateParams);
 
       // Borrar datos hijos existentes para ese aspirante
+      console.log(`🗑️ Eliminando registros hijos para aspirante ${idAspirante}`);
       const deleteQueries = [
         conn.query(`DELETE FROM Dynamic_hv_educacion WHERE id_aspirante = ?`, [idAspirante]),
         conn.query(`DELETE FROM Dynamic_hv_experiencia_laboral WHERE id_aspirante = ?`, [idAspirante]),
@@ -832,8 +851,9 @@ app.post("/api/hv/registrar", async (req, res) => {
 
     } else {
       // --- Caso: no existe -> insertar nuevo aspirante ---
-      const [aspiranteResult] = await conn.query(
-        `
+      console.log(`🆕 Insertando nuevo aspirante: ${identificacion}`);
+
+      const insertQuery = `
         INSERT INTO Dynamic_hv_aspirante (
           tipo_documento,
           identificacion,
@@ -848,8 +868,8 @@ app.post("/api/hv/registrar", async (req, res) => {
           fecha_expedicion,
           estado_civil,
           direccion_barrio,
-          departamento,
-          ciudad,
+          departamento,          -- CORREGIDO: la tabla tiene 'departamento'
+          ciudad,                -- CORREGIDO: la tabla tiene 'ciudad'
           telefono,
           correo_electronico,
           eps,
@@ -866,39 +886,42 @@ app.post("/api/hv/registrar", async (req, res) => {
           fecha_registro
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `,
-        [
-          tipo_documento || null,
-          identificacion || null,
-          primer_nombre || null,
-          segundo_nombre || null,
-          primer_apellido || null,
-          segundo_apellido || null,
-          fecha_nacimiento || null,
-          edad || null,
-          departamento_expedicion || null,
-          ciudad_expedicion || null,
-          fecha_expedicion || null,
-          estado_civil || null,
-          direccion_barrio || null,
-          departamento_residencia || null,
-          ciudad_residencia || null,
-          telefono || null,
-          correo_electronico || null,
-          eps || null,
-          afp || null,
-          rh || null,
-          talla_pantalon || null,
-          camisa_talla || null,
-          zapatos_talla || null,
-          datosAspirante.foto_gcs_path || null,
-          datosAspirante.foto_public_url || null,
-          origen_registro,
-          medio_reclutamiento || null,
-          recomendador_aspirante || null,
-          ahora
-        ]
-      );
+      `;
+
+      const insertParams = [
+        tipo_documento || null,
+        identificacion || null,
+        primer_nombre || null,
+        segundo_nombre || null,
+        primer_apellido || null,
+        segundo_apellido || null,
+        fecha_nacimiento || null,
+        edad || null,
+        departamento_expedicion || null,
+        ciudad_expedicion || null,
+        fecha_expedicion || null,
+        estado_civil || null,
+        direccion_barrio || null,
+        departamento_residencia || null,  // Se mapea al campo 'departamento'
+        ciudad_residencia || null,        // Se mapea al campo 'ciudad'
+        telefono || null,
+        correo_electronico || null,
+        eps || null,
+        afp || null,
+        rh || null,
+        talla_pantalon || null,
+        camisa_talla || null,
+        zapatos_talla || null,
+        foto_gcs_path,
+        foto_public_url,
+        origen_registro,
+        medio_reclutamiento || null,
+        recomendador_aspirante || null,
+        ahora
+      ];
+
+      console.log('📝 Ejecutando INSERT con parámetros:', insertParams.length);
+      const [aspiranteResult] = await conn.query(insertQuery, insertParams);
 
       // Obtener id mediante la identificación
       const [rowId] = await conn.query(
@@ -917,124 +940,140 @@ app.post("/api/hv/registrar", async (req, res) => {
     // ========== 5. INSERTAR DATOS RELACIONADOS ==========
 
     // 5.1) Educación (Dynamic_hv_educacion)
-    for (const edu of educacion) {
-      if (!edu.institucion && !edu.programa) continue;
+    if (educacion && educacion.length > 0) {
+      for (const edu of educacion) {
+        if (!edu.institucion && !edu.programa) continue;
 
-      await conn.query(
-        `
-        INSERT INTO Dynamic_hv_educacion (
-          id_aspirante,
-          institucion,
-          programa,
-          nivel_escolaridad,
-          modalidad,
-          ano,
-          finalizado
-        )
-        VALUES (?,?,?,?,?,?,?)
-        `,
-        [
-          idAspirante,
-          edu.institucion || null,
-          edu.programa || null,
-          edu.nivel_escolaridad || null,
-          edu.modalidad || null,
-          edu.ano || null,
-          edu.finalizado || null
-        ]
-      );
+        await conn.query(
+          `
+          INSERT INTO Dynamic_hv_educacion (
+            id_aspirante,
+            institucion,
+            programa,
+            nivel_escolaridad,
+            modalidad,
+            ano,
+            finalizado
+          )
+          VALUES (?,?,?,?,?,?,?)
+          `,
+          [
+            idAspirante,
+            edu.institucion || null,
+            edu.programa || null,
+            edu.nivel_escolaridad || null,
+            edu.modalidad || null,
+            edu.ano || null,
+            edu.finalizado || null
+          ]
+        );
+      }
+      console.log(`✅ Educación: ${educacion.length} registros`);
+    } else {
+      console.log(`ℹ️ Educación: Sin registros`);
     }
-    console.log(`✅ Educación: ${educacion.length} registros`);
 
     // 5.2) Experiencia laboral (Dynamic_hv_experiencia_laboral)
-    for (const exp of experiencia_laboral) {
-      if (!exp.empresa && !exp.cargo) continue;
+    if (experiencia_laboral && experiencia_laboral.length > 0) {
+      for (const exp of experiencia_laboral) {
+        if (!exp.empresa && !exp.cargo) continue;
 
-      await conn.query(
-        `
-        INSERT INTO Dynamic_hv_experiencia_laboral (
-          id_aspirante,
-          empresa,
-          cargo,
-          tiempo_laborado,
-          salario,
-          motivo_retiro,
-          funciones
-        )
-        VALUES (?,?,?,?,?,?,?)
-        `,
-        [
-          idAspirante,
-          exp.empresa || null,
-          exp.cargo || null,
-          exp.tiempo_laborado || null,
-          exp.salario || null,
-          exp.motivo_retiro || null,
-          exp.funciones || null
-        ]
-      );
+        await conn.query(
+          `
+          INSERT INTO Dynamic_hv_experiencia_laboral (
+            id_aspirante,
+            empresa,
+            cargo,
+            tiempo_laborado,
+            salario,
+            motivo_retiro,
+            funciones
+          )
+          VALUES (?,?,?,?,?,?,?)
+          `,
+          [
+            idAspirante,
+            exp.empresa || null,
+            exp.cargo || null,
+            exp.tiempo_laborado || null,
+            exp.salario || null,
+            exp.motivo_retiro || null,
+            exp.funciones || null
+          ]
+        );
+      }
+      console.log(`✅ Experiencia: ${experiencia_laboral.length} registros`);
+    } else {
+      console.log(`ℹ️ Experiencia: Sin registros`);
     }
-    console.log(`✅ Experiencia: ${experiencia_laboral.length} registros`);
 
     // 5.3) Familiares (Dynamic_hv_familiares)
-    for (const fam of familiares) {
-      if (!fam.nombre_completo) continue;
+    if (familiares && familiares.length > 0) {
+      for (const fam of familiares) {
+        if (!fam.nombre_completo) continue;
 
-      await conn.query(
-        `
-        INSERT INTO Dynamic_hv_familiares (
-          id_aspirante,
-          nombre_completo,
-          parentesco,
-          edad,
-          ocupacion,
-          conviven_juntos
-        )
-        VALUES (?,?,?,?,?,?)
-        `,
-        [
-          idAspirante,
-          fam.nombre_completo || null,
-          fam.parentesco || null,
-          fam.edad || null,
-          fam.ocupacion || null,
-          fam.conviven_juntos || null
-        ]
-      );
+        await conn.query(
+          `
+          INSERT INTO Dynamic_hv_familiares (
+            id_aspirante,
+            nombre_completo,
+            parentesco,
+            edad,
+            ocupacion,
+            conviven_juntos
+          )
+          VALUES (?,?,?,?,?,?)
+          `,
+          [
+            idAspirante,
+            fam.nombre_completo || null,
+            fam.parentesco || null,
+            fam.edad || null,
+            fam.ocupacion || null,
+            fam.conviven_juntos || null
+          ]
+        );
+      }
+      console.log(`✅ Familiares: ${familiares.length} registros`);
+    } else {
+      console.log(`ℹ️ Familiares: Sin registros`);
     }
-    console.log(`✅ Familiares: ${familiares.length} registros`);
 
     // 5.4) Referencias (Dynamic_hv_referencias)
-    for (const ref of referencias) {
-      if (!ref.tipo_referencia) continue;
+    if (referencias && referencias.length > 0) {
+      for (const ref of referencias) {
+        if (!ref.tipo_referencia) continue;
 
-      await conn.query(
-        `
-        INSERT INTO Dynamic_hv_referencias (
-        id_aspirante,
-        tipo_referencia,
-        empresa,
-        jefe_inmediato,
-        cargo_jefe,
-        nombre_completo,
-        telefono,
-        ocupacion
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `,
-        [
-          idAspirante,
-          ref.tipo_referencia,
-          ref.empresa || null,
-          ref.jefe_inmediato || null,
-          ref.cargo_jefe || null,
-          ref.nombre_completo || null,
-          ref.telefono || null,
-          ref.ocupacion || null
-        ]
-      );
+        await conn.query(
+          `
+          INSERT INTO Dynamic_hv_referencias (
+          id_aspirante,
+          tipo_referencia,
+          empresa,
+          jefe_inmediato,
+          cargo_jefe,
+          nombre_completo,
+          telefono,
+          ocupacion
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          `,
+          [
+            idAspirante,
+            ref.tipo_referencia,
+            ref.empresa || null,
+            ref.jefe_inmediato || null,
+            ref.cargo_jefe || null,
+            ref.nombre_completo || null,
+            ref.telefono || null,
+            ref.ocupacion || null
+          ]
+        );
+      }
+      console.log(`✅ Referencias: ${referencias.length} registros`);
+    } else {
+      console.log(`ℹ️ Referencias: Sin registros`);
     }
-    console.log(`✅ Referencias: ${referencias.length} registros`);
 
     // 5.5) Contacto de emergencia (Dynamic_hv_contacto_emergencia)
     if (contacto_emergencia && contacto_emergencia.nombre_completo) {
@@ -1060,10 +1099,12 @@ app.post("/api/hv/registrar", async (req, res) => {
         ]
       );
       console.log(`✅ Contacto emergencia: registrado`);
+    } else {
+      console.log(`ℹ️ Contacto emergencia: Sin registro`);
     }
 
     // 5.6) Metas personales (Dynamic_hv_metas_personales)
-    if (metas_personales) {
+    if (metas_personales && (metas_personales.corto_plazo || metas_personales.mediano_plazo || metas_personales.largo_plazo)) {
       await conn.query(
         `
         INSERT INTO Dynamic_hv_metas_personales (
@@ -1082,10 +1123,12 @@ app.post("/api/hv/registrar", async (req, res) => {
         ]
       );
       console.log(`✅ Metas personales: registradas`);
+    } else {
+      console.log(`ℹ️ Metas personales: Sin registro`);
     }
 
     // 5.7) Seguridad / cuestionario personal (Dynamic_hv_seguridad)
-    if (seguridad) {
+    if (seguridad && Object.keys(seguridad).length > 0) {
       await conn.query(
         `
         INSERT INTO Dynamic_hv_seguridad (
@@ -1132,6 +1175,8 @@ app.post("/api/hv/registrar", async (req, res) => {
         ]
       );
       console.log(`✅ Seguridad: registrada`);
+    } else {
+      console.log(`ℹ️ Seguridad: Sin registro`);
     }
 
     // ========== 6. CONSTRUIR DATOS PARA EL PDF ==========
@@ -1192,7 +1237,7 @@ app.post("/api/hv/registrar", async (req, res) => {
 
     function siNo(valor) {
       if (valor === null || valor === undefined) return "";
-      return valor == 1 ? "Sí" : "No";
+      return valor == 1 || valor === true || valor === "true" ? "Sí" : "No";
     }
 
     // Construir dataObjects para la plantilla del PDF
@@ -1200,10 +1245,10 @@ app.post("/api/hv/registrar", async (req, res) => {
       NOMBRE_COMPLETO: `${escapeHtml(primer_nombre || "")} ${escapeHtml(primer_apellido || "")}`.trim(),
       TIPO_ID: escapeHtml(tipo_documento || ""),
       IDENTIFICACION: escapeHtml(identificacion || ""),
-      CIUDAD_RESIDENCIA: escapeHtml(ciudad_residencia || datosAspirante.ciudad || ""),
-      TELEFONO: escapeHtml(telefono || datosAspirante.telefono || ""),
-      CORREO: escapeHtml(correo_electronico || datosAspirante.correo_electronico || ""),
-      DIRECCION: escapeHtml(direccion_barrio || datosAspirante.direccion_barrio || ""),
+      CIUDAD_RESIDENCIA: escapeHtml(ciudad_residencia || ""),
+      TELEFONO: escapeHtml(telefono || ""),
+      CORREO: escapeHtml(correo_electronico || ""),
+      DIRECCION: escapeHtml(direccion_barrio || ""),
       FECHA_NACIMIENTO: escapeHtml(fecha_nacimiento || ""),
       ESTADO_CIVIL: escapeHtml(estado_civil || ""),
       EPS: escapeHtml(eps || ""),
@@ -1212,7 +1257,7 @@ app.post("/api/hv/registrar", async (req, res) => {
       CAMISA_TALLA: escapeHtml(camisa_talla || ""),
       TALLA_PANTALON: escapeHtml(talla_pantalon || ""),
       ZAPATOS_TALLA: escapeHtml(zapatos_talla || ""),
-      PHOTO_URL: datosAspirante.foto_public_url || "",
+      PHOTO_URL: foto_public_url || "",
       EDUCACION_LIST,
       EXPERIENCIA_LIST,
       REFERENCIAS_LIST,
@@ -1290,6 +1335,7 @@ app.post("/api/hv/registrar", async (req, res) => {
 
       } catch (pdfGenError) {
         console.error(`❌ Error generando PDF: ${pdfGenError.message}`);
+        console.error(`❌ Stack trace PDF:`, pdfGenError.stack);
         pdfError = pdfGenError.message;
 
         console.log(`⚠️ Continuando sin PDF generado. Datos del aspirante guardados en BD.`);
@@ -1341,7 +1387,7 @@ app.post("/api/hv/registrar", async (req, res) => {
       }
     }
 
-    console.log(`📤 Respondiendo al cliente: ${JSON.stringify(respuesta, null, 2)}`);
+    console.log(`📤 Respondiendo al cliente exitosamente para: ${identificacion}`);
     return res.json(respuesta);
 
   } catch (error) {
