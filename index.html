@@ -2956,31 +2956,31 @@
           datosCorreo.pdf_url = pdf_url;
 
           // PASO 3: Enviar el correo de notificación
-          try {
-            const correoResponse = await fetch('https://curriculum-compact-594761951101.europe-west1.run.app/api/correo/aspirante', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify(datosCorreo)
-            });
+          // try {
+          //   const correoResponse = await fetch('https://curriculum-compact-594761951101.europe-west1.run.app/api/correo/aspirante', {
+          //     method: 'POST',
+          //     headers: {
+          //       'Content-Type': 'application/json'
+          //     },
+          //     body: JSON.stringify(datosCorreo)
+          //   });
 
-            if (correoResponse.ok) {
-              const correoResult = await correoResponse.json();
-              console.log('Correo enviado exitosamente', correoResult);
+          //   if (correoResponse.ok) {
+          //     const correoResult = await correoResponse.json();
+          //     console.log('Correo enviado exitosamente', correoResult);
 
-              // Mostrar mensaje de éxito completo
-              alert("✅ Hoja de vida registrada correctamente");
-            } else {
-              console.warn('Correo no enviado, pero HV registrada');
-              alert("✅ Hoja de vida registrada correctamente.");
-            }
-          } catch (correoError) {
-            console.warn('Error enviando correo:', correoError);
-            // No fallar el proceso completo si el correo falla
-            alert("✅ Hoja de vida registrada correctamente.");
-          }
-
+          //     // Mostrar mensaje de éxito completo
+          //     alert("✅ Hoja de vida registrada correctamente");
+          //   } else {
+          //     console.warn('Correo no enviado, pero HV registrada');
+          //     alert("✅ Hoja de vida registrada correctamente.");
+          //   }
+          // } catch (correoError) {
+          //   console.warn('Error enviando correo:', correoError);
+          //   // No fallar el proceso completo si el correo falla
+          //   alert("✅ Hoja de vida registrada correctamente.");
+          // }
+          alert("✅ Hoja de vida registrada correctamente.");
           // PASO 4: Resetear el formulario
           if (typeof resetFormToInitialState === "function") {
             resetFormToInitialState();
