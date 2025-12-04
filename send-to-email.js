@@ -50,7 +50,7 @@ Revisa en LogyApp para más detalles.
         .pdf-button { 
           display: inline-block; 
           background: linear-gradient(135deg, #F15300 0%, #ff7043 100%); 
-          color: Green; 
+          color: White; 
           padding: 14px 28px; 
           text-decoration: none; 
           border-radius: 8px; 
@@ -62,7 +62,7 @@ Revisa en LogyApp para más detalles.
         }
         .pdf-button:hover {
           background: linear-gradient(135deg, #e64a19 0%, #ff5722 100%);
-          foreground: #fff3e0;
+          color: White;
           transform: translateY(-2px);
           box-shadow: 0 6px 12px rgba(241, 83, 0, 0.3);
         }
