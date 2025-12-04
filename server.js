@@ -699,6 +699,7 @@ app.post("/api/hv/registrar", async (req, res) => {
     let idAspirante = null;
     let pdf_gcs_path_anterior = null;
     let pdf_public_url_anterior = null;
+    let esNuevoRegistro = true;
 
     if (identificacion) {
       const [existingRows] = await conn.query(
@@ -710,6 +711,7 @@ app.post("/api/hv/registrar", async (req, res) => {
         idAspirante = existingRows[0].id_aspirante;
         pdf_gcs_path_anterior = existingRows[0].pdf_gcs_path;
         pdf_public_url_anterior = existingRows[0].pdf_public_url;
+        esNuevoRegistro = false;
 
         console.log(`📄 Aspirante existente encontrado. ID: ${idAspirante}`);
         if (pdf_gcs_path_anterior) {
@@ -717,6 +719,7 @@ app.post("/api/hv/registrar", async (req, res) => {
         }
       } else {
         console.log(`🆕 Aspirante no encontrado, se creará nuevo registro`);
+        esNuevoRegistro = true;
       }
     }
 
@@ -1354,7 +1357,8 @@ app.post("/api/hv/registrar", async (req, res) => {
             correo: correo_electronico,
             telefono,
             pdf_url: pdfUrl,
-            timestamp: new Date().toLocaleString('es-CO')
+            timestamp: new Date().toLocaleString('es-CO'),
+            esNuevoRegistro: esNuevoRegistro
           });
           console.log("✅ Correo enviado exitosamente");
         } catch (emailError) {
