@@ -7,7 +7,7 @@ async function enviarCorreoAspirante({
   telefono,
   pdf_url,
   timestamp,
-  esNuevo = true
+  esNuevo
 }) {
   const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
