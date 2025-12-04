@@ -718,7 +718,7 @@ app.post("/api/hv/registrar", async (req, res) => {
       await conn.query(
         `UPDATE Dynamic_hv_aspirante SET 
           pdf_gcs_path = NULL,
-          pdf_public_url = NULL,
+          pdf_public_url = NULL
         WHERE identificacion = ?`,
         [identificacion]
       );
@@ -1283,7 +1283,7 @@ app.post("/api/hv/registrar", async (req, res) => {
         await conn.query(
           `UPDATE Dynamic_hv_aspirante SET 
             pdf_gcs_path = ?,
-            pdf_public_url = ?,
+            pdf_public_url = ?
           WHERE identificacion = ?`,
           [pdfResult.destName, pdfUrl, identificacion]
         );
@@ -1291,19 +1291,6 @@ app.post("/api/hv/registrar", async (req, res) => {
       } catch (pdfGenError) {
         console.error(`❌ Error generando PDF: ${pdfGenError.message}`);
         pdfError = pdfGenError.message;
-
-        // // Registrar error en BD
-        // try {
-        //   await conn.query(
-        //     `UPDATE Dynamic_hv_aspirante SET 
-        //       pdf_error = ?
-        //     WHERE identificacion = ?`,
-        //     [pdfError, identificacion]
-        //   );
-        //   console.log(`📝 Error de PDF registrado en BD para ${identificacion}`);
-        // } catch (dbError) {
-        //   console.warn(`⚠️ No se pudo registrar error de PDF en BD: ${dbError.message}`);
-        // }
 
         console.log(`⚠️ Continuando sin PDF generado. Datos del aspirante guardados en BD.`);
       }
