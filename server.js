@@ -621,6 +621,34 @@ app.post("/api/hv/upload-photo", upload.single("photo"), async (req, res) => {
   }
 });
 
+// ========== FUNCIÓN PARA VERIFICAR SI ES NUEVO (AISLADA) ==========
+async function verificarSiEsNuevo(identificacion) {
+  if (!identificacion) return true;
+
+  try {
+    const connVerificacion = await pool.getConnection();
+
+    const [result] = await connVerificacion.query(
+      `SELECT COUNT(*) as count FROM Dynamic_hv_aspirante WHERE identificacion = ?`,
+      [identificacion]
+    );
+
+    await connVerificacion.release();
+
+    // FORZAR a booleano
+    const count = Number(result[0].count) || 0;
+    const esNuevo = count === 0;
+
+    console.log(`🔍 Verificación aislada - ID: ${identificacion}, Count: ${count}, Es nuevo: ${esNuevo}`);
+
+    return Boolean(esNuevo); // <-- Asegurar que sea booleano
+
+  } catch (error) {
+    console.error(`❌ Error en verificación aislada: ${error.message}`);
+    return true;
+  }
+}
+
 app.post("/api/hv/registrar", async (req, res) => {
   console.log("📝 HV Registrar endpoint hit");
 
@@ -680,6 +708,10 @@ app.post("/api/hv/registrar", async (req, res) => {
     metas_personales = {},
     seguridad = {}
   } = datosAspirante;
+
+  const esNuevoVerificado = await verificarSiEsNuevo(identificacion);
+  console.log(`✅ Estado verificado: ${esNuevoVerificado ? 'NUEVO REGISTRO' : 'ACTUALIZACIÓN'}`);
+  let esNuevoRegistro = esNuevoVerificado;
 
   // DEBUG: Verificar estructura de datos recibidos
   console.log('📋 Datos recibidos para depuración:');
@@ -1344,6 +1376,10 @@ app.post("/api/hv/registrar", async (req, res) => {
 
     // ========== 9. ENVIAR CORREO (ASINCRÓNICO) ==========
     if (pdfUrl) {
+
+      const esNuevoParaCorreo = Boolean(esNuevoRegistro);
+
+      console.log(`📧 Enviando correo con estado: ${esNuevoParaCorreo ? 'NUEVO' : 'ACTUALIZACIÓN'}`);
       // Enviar en segundo plano
       setTimeout(async () => {
         try {
@@ -1354,7 +1390,8 @@ app.post("/api/hv/registrar", async (req, res) => {
             correo: correo_electronico,
             telefono,
             pdf_url: pdfUrl,
-            timestamp: new Date().toLocaleString('es-CO')
+            timestamp: new Date().toLocaleString('es-CO'),
+            esNuevo: esNuevoParaCorreo
           });
           console.log("✅ Correo enviado exitosamente");
         } catch (emailError) {
@@ -1429,7 +1466,7 @@ app.post("/api/hv/registrar", async (req, res) => {
 
 async function deleteURLFromDB(req, res) {
   try {
-    const { id } = req.params; // Corrección: debe ser req.params.id
+    const { id } = req.params;
 
     if (!id) {
       return res.status(400).json({

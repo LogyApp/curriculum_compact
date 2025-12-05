@@ -6,7 +6,8 @@ async function enviarCorreoAspirante({
   correo,
   telefono,
   pdf_url,
-  timestamp
+  timestamp,
+  esNuevo
 }) {
   const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
@@ -18,17 +19,19 @@ async function enviarCorreoAspirante({
     }
   });
 
-  const asunto = `Nuevo aspirante registrado — ${nombre} (${identificacion})`;
+  // ASUNTO INTELIGENTE: Diferencia entre nuevo y actualización
+  const tipoRegistro = esNuevo ? "Nuevo aspirante registrado" : "Aspirante actualizado";
+  const asunto = `${tipoRegistro} — ${nombre} (${identificacion})`;
 
   const textoPlano = `
-Se ha registrado un nuevo aspirante en Logyser.
+${esNuevo ? "Se ha registrado un nuevo aspirante" : "Se ha actualizado la información de un aspirante"} en Logyser.
 
 Nombre: ${nombre}
 Identificación: ${identificacion}
 Correo: ${correo}
 Teléfono: ${telefono}
 ${pdf_url ? `Hoja de vida (PDF): ${pdf_url}` : 'Hoja de vida: No disponible temporalmente'}
-Fecha registro: ${timestamp}
+${esNuevo ? `Fecha registro: ${timestamp}` : `Fecha actualización: ${timestamp}`}
 
 Revisa en LogyApp para más detalles.
   `;
@@ -41,7 +44,21 @@ Revisa en LogyApp para más detalles.
       <style>
         body { font-family: Arial, sans-serif; line-height: 1.5; margin: 0; padding: 20px; background-color: #f5f5f5; }
         .email-container { max-width: 600px; margin: 0 auto; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        .header { background: linear-gradient(135deg, #000B59 0%, #1a237e 100%); color: white; padding: 25px 20px; text-align: center; }
+        
+        /* HEADER DIFERENCIADO */
+        .header-nuevo { 
+          background: linear-gradient(135deg, #000B59 0%, #1a237e 100%); 
+          color: white; 
+          padding: 25px 20px; 
+          text-align: center; 
+        }
+        .header-actualizado { 
+          background: linear-gradient(135deg, #F15300 0%, #ff7043 100%); 
+          color: white; 
+          padding: 25px 20px; 
+          text-align: center; 
+        }
+        
         .content { padding: 30px; }
         .info-row { margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #eee; }
         .info-label { font-weight: bold; color: #333; display: inline-block; width: 140px; }
@@ -50,7 +67,7 @@ Revisa en LogyApp para más detalles.
         .pdf-button { 
           display: inline-block; 
           background: linear-gradient(135deg, #F15300 0%, #ff7043 100%); 
-          color: White; 
+          color: white; 
           padding: 14px 28px; 
           text-decoration: none; 
           border-radius: 8px; 
@@ -62,7 +79,7 @@ Revisa en LogyApp para más detalles.
         }
         .pdf-button:hover {
           background: linear-gradient(135deg, #e64a19 0%, #ff5722 100%);
-          color: White;
+          color: white;
           transform: translateY(-2px);
           box-shadow: 0 6px 12px rgba(241, 83, 0, 0.3);
         }
@@ -76,12 +93,35 @@ Revisa en LogyApp para más detalles.
           border-left: 4px solid #ff9800;
           color: #e65100;
         }
+        .badge {
+          display: inline-block;
+          padding: 4px 12px;
+          border-radius: 20px;
+          font-size: 12px;
+          font-weight: 600;
+          margin-left: 10px;
+          vertical-align: middle;
+        }
+        .badge-nuevo {
+          background: #10b981;
+          color: white;
+        }
+        .badge-actualizado {
+          background: #f59e0b;
+          color: white;
+        }
       </style>
     </head>
     <body>
       <div class="email-container">
-        <div class="header">
-          <h2 style="margin: 0; font-size: 24px;">📄 Nuevo Aspirante Registrado</h2>
+        <!-- HEADER DINÁMICO SEGÚN TIPO DE REGISTRO -->
+        <div class="${esNuevo ? 'header-nuevo' : 'header-actualizado'}">
+          <h2 style="margin: 0; font-size: 24px;">
+            ${esNuevo ? '📄 Nuevo Aspirante Registrado' : '✏️ Aspirante Actualizado'}
+            <span class="badge ${esNuevo ? 'badge-nuevo' : 'badge-actualizado'}">
+              ${esNuevo ? 'NUEVO' : 'ACTUALIZADO'}
+            </span>
+          </h2>
           <p style="margin: 5px 0 0; opacity: 0.9;">Sistema de Hojas de Vida - Logyser</p>
         </div>
         
@@ -107,8 +147,8 @@ Revisa en LogyApp para más detalles.
           </div>
           
           <div class="info-row">
-            <span class="info-label">📅 Fecha registro:</span>
-            <span class="info-value">${timestamp}</span>
+            <span class="info-label">📅 ${esNuevo ? 'Fecha registro' : 'Fecha actualización'}:</span>
+            <span class="info-value">${new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' })}</span>
           </div>
           
           ${pdf_url ? `
@@ -141,7 +181,9 @@ Revisa en LogyApp para más detalles.
             <p style="font-size: 12px; color: #999;">
               Este es un correo automático. No responder a esta dirección.
               <br>
-              Fecha de envío: ${new Date().toLocaleString('es-CO')}
+              Fecha de envío: ${new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' })}
+              <br>
+              Tipo de operación: ${esNuevo ? 'Registro nuevo' : 'Actualización de datos'}
             </p>
           </div>
         </div>
@@ -160,6 +202,7 @@ Revisa en LogyApp para más detalles.
 
   console.log("✅ Correo enviado exitosamente:", info.messageId);
   console.log("📎 PDF URL incluida:", pdf_url || "No disponible");
+  console.log("📌 Tipo de registro:", esNuevo ? "Nuevo" : "Actualización");
 
   return info.messageId;
 }
