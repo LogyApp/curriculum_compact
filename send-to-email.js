@@ -148,7 +148,7 @@ Revisa en LogyApp para más detalles.
           
           <div class="info-row">
             <span class="info-label">📅 ${esNuevo ? 'Fecha registro' : 'Fecha actualización'}:</span>
-            <span class="info-value">${timestamp}</span>
+            <span class="info-value">${new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' })}</span>
           </div>
           
           ${pdf_url ? `
