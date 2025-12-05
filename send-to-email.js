@@ -181,7 +181,7 @@ Revisa en LogyApp para más detalles.
             <p style="font-size: 12px; color: #999;">
               Este es un correo automático. No responder a esta dirección.
               <br>
-              Fecha de envío: ${new Date().toLocaleString('es-CO')}
+              Fecha de envío: ${new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' })}
               <br>
               Tipo de operación: ${esNuevo ? 'Registro nuevo' : 'Actualización de datos'}
             </p>
