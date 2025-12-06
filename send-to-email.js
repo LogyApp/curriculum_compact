@@ -194,7 +194,11 @@ Revisa en LogyApp para más detalles.
 
   const info = await transporter.sendMail({
     from: '"Logyser Notificaciones" <logyser.noreply@gmail.com>',
-    to: "seguimientologyser@gmail.com",
+    to: [
+      "seguimientologyser@gmail.com",
+      "seleccion@logyser.com",
+      "seleccion2@logyser.com",
+    ],
     subject: asunto,
     text: textoPlano,
     html: html

@@ -577,6 +577,65 @@
     .delete-modal-actions .btn {
       min-width: 88px;
     }
+
+    /* ===========================
+   ESTILOS PARA VALIDACIÓN DE EMAIL
+============================ */
+    .email-error {
+      color: var(--error);
+      font-size: 0.8rem;
+      margin-top: 4px;
+      padding: 4px 8px;
+      background-color: #fff5f5;
+      border-radius: 4px;
+      border-left: 3px solid var(--error);
+    }
+
+    .email-success {
+      color: #4caf50;
+      font-size: 0.8rem;
+      margin-top: 4px;
+      padding: 4px 8px;
+      background-color: #f5fff5;
+      border-radius: 4px;
+      border-left: 3px solid #4caf50;
+    }
+
+    /* Estilos para campos validados */
+    input[type="email"].valid {
+      border-color: #4caf50 !important;
+      background-color: #f5fff5 !important;
+    }
+
+    input[type="email"].invalid {
+      border-color: var(--error) !important;
+      background-color: #fff5f5 !important;
+    }
+
+    /* Indicador visual en el campo */
+    .field-email {
+      position: relative;
+    }
+
+    .field-email::after {
+      content: '';
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 16px;
+      height: 16px;
+      background-size: contain;
+      background-repeat: no-repeat;
+    }
+
+    .field-email.valid::after {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%234CAF50'%3E%3Cpath d='M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z'/%3E%3C/svg%3E");
+    }
+
+    .field-email.invalid::after {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23C0392B'%3E%3Cpath d='M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z'/%3E%3C/svg%3E");
+    }
   </style>
 </head>
 
@@ -1306,6 +1365,113 @@
 
     let currentStep = 0;
 
+    function validarFormatoEmail(email) {
+      // Expresión regular mejorada para validar email
+      const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      return regex.test(email);
+    }
+
+    function validarExtensionEmail(email) {
+      // Lista de extensiones válidas comunes
+      const extensionesValidas = [
+        'com', 'org', 'net', 'edu', 'gov', 'co', 'es', 'mx', 'ar', 'pe', 'cl',
+        'info', 'biz', 'io', 'me', 'tv', 'us', 'uk', 'de', 'fr', 'it', 'jp', 'cn'
+      ];
+
+      // Verificar estructura básica primero
+      if (!email.includes('@') || !email.includes('.')) {
+        return false;
+      }
+
+      // Obtener la extensión (lo que viene después del último punto)
+      const partes = email.split('@');
+      if (partes.length !== 2) return false;
+
+      const dominio = partes[1];
+      const extension = dominio.split('.').pop().toLowerCase();
+
+      return extensionesValidas.includes(extension);
+    }
+
+    function mostrarErrorCampo(campoId, mensaje) {
+      const campo = document.getElementById(campoId);
+      if (!campo) return;
+
+      // Crear o actualizar el mensaje de error
+      let errorDiv = campo.parentElement.querySelector('.email-error');
+      if (!errorDiv) {
+        errorDiv = document.createElement('div');
+        errorDiv.className = 'email-error';
+        errorDiv.style.color = 'var(--error)';
+        errorDiv.style.fontSize = '0.8rem';
+        errorDiv.style.marginTop = '4px';
+        campo.parentElement.appendChild(errorDiv);
+      }
+
+      errorDiv.textContent = mensaje;
+      campo.style.borderColor = 'var(--error)';
+      campo.style.backgroundColor = '#fff5f5';
+    }
+
+    function limpiarErrorCampo(campoId) {
+      const campo = document.getElementById(campoId);
+      if (!campo) return;
+
+      const errorDiv = campo.parentElement.querySelector('.email-error');
+      if (errorDiv) {
+        errorDiv.textContent = '';
+      }
+      campo.style.borderColor = '';
+      campo.style.backgroundColor = '';
+    }
+
+    function validarEmailEnTiempoReal(campoId) {
+      const campo = document.getElementById(campoId);
+      if (!campo) return;
+
+      campo.addEventListener('input', function () {
+        const email = campo.value.trim();
+
+        if (email === '') {
+          limpiarErrorCampo(campoId);
+          return;
+        }
+
+        // Validar formato básico
+        if (!validarFormatoEmail(email)) {
+          mostrarErrorCampo(campoId, '❌ Formato de email inválido. Debe ser: usuario@dominio.com');
+          return;
+        }
+
+        // Validar extensión
+        if (!validarExtensionEmail(email)) {
+          mostrarErrorCampo(campoId, '⚠️ La extensión del dominio puede no ser válida. Verifica tu email.');
+          return;
+        }
+
+        // Email válido
+        limpiarErrorCampo(campoId);
+        campo.style.borderColor = '#4caf50';
+        campo.style.backgroundColor = '#f5fff5';
+      });
+
+      // También validar al perder el foco
+      campo.addEventListener('blur', function () {
+        const email = campo.value.trim();
+
+        if (email === '') {
+          limpiarErrorCampo(campoId);
+          return;
+        }
+
+        if (!validarFormatoEmail(email)) {
+          mostrarErrorCampo(campoId, '❌ Formato de email inválido. Ejemplo: usuario@dominio.com');
+          return;
+        }
+      });
+    }
+
+
     // ⭐ AHORA SÍ PONLO AQUÍ ⭐
     showStep(0);
 
@@ -1425,21 +1591,109 @@
       let valid = true;
       let firstInvalid = null;
 
+      // Función auxiliar para validar email
+      function validarFormatoEmail(email) {
+        // Expresión regular mejorada para validar email
+        const regex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+        return regex.test(email);
+      }
+
+      // Función auxiliar para mostrar error en campo
+      function mostrarErrorEmail(campo, mensaje) {
+        // Crear o actualizar mensaje de error
+        let errorSpan = campo.parentElement.querySelector('.email-error-message');
+        if (!errorSpan) {
+          errorSpan = document.createElement('span');
+          errorSpan.className = 'email-error-message';
+          errorSpan.style.cssText = `
+                color: var(--error);
+                font-size: 0.8rem;
+                margin-top: 4px;
+                display: block;
+            `;
+          campo.parentElement.appendChild(errorSpan);
+        }
+        errorSpan.textContent = mensaje;
+        campo.style.borderColor = 'var(--error)';
+        campo.style.backgroundColor = '#fff5f5';
+      }
+
+      // Función auxiliar para limpiar error de email
+      function limpiarErrorEmail(campo) {
+        const errorSpan = campo.parentElement.querySelector('.email-error-message');
+        if (errorSpan) {
+          errorSpan.textContent = '';
+        }
+        campo.style.borderColor = '';
+        campo.style.backgroundColor = '';
+      }
+
+      // Validar todos los campos requeridos
       requiredFields.forEach((field) => {
         const value = (field.value || "").trim();
-        const isInvalid = value === "";
-        field.style.borderColor = isInvalid ? "var(--error)" : "var(--border)";
+        let isInvalid = value === "";
+
+        // Validación específica para campos de email
+        if (field.type === 'email' && value !== '') {
+          if (!validarFormatoEmail(value)) {
+            mostrarErrorEmail(field, '❌ Formato de email inválido. Ejemplo: usuario@dominio.com');
+            isInvalid = true;
+          } else {
+            limpiarErrorEmail(field);
+            // Marcar como válido visualmente
+            field.style.borderColor = '#4caf50';
+            field.style.backgroundColor = '#f5fff5';
+          }
+        } else if (field.type === 'email' && value === '') {
+          limpiarErrorEmail(field);
+        }
+
+        // Para campos no-email, mantener la validación original
+        if (field.type !== 'email') {
+          field.style.borderColor = isInvalid ? "var(--error)" : "var(--border)";
+          if (isInvalid) {
+            // Limpiar posible estilo de error previo
+            field.style.backgroundColor = '';
+          }
+        }
+
         if (isInvalid && !firstInvalid) {
           firstInvalid = field;
         }
         if (isInvalid) valid = false;
       });
 
+      // También validar campos de email no requeridos pero que si tienen contenido
+      const emailFields = stepElement.querySelectorAll("input[type='email']:not([data-required='true'])");
+      emailFields.forEach((field) => {
+        const value = (field.value || "").trim();
+        if (value !== '' && !validarFormatoEmail(value)) {
+          mostrarErrorEmail(field, '❌ Formato de email inválido. Ejemplo: usuario@dominio.com');
+          valid = false;
+          if (!firstInvalid) firstInvalid = field;
+        } else if (value !== '') {
+          limpiarErrorEmail(field);
+          field.style.borderColor = '#4caf50';
+          field.style.backgroundColor = '#f5fff5';
+        } else {
+          limpiarErrorEmail(field);
+          field.style.borderColor = '';
+          field.style.backgroundColor = '';
+        }
+      });
+
       const errorDiv = document.getElementById(`error-step-${stepIndex}`);
       if (errorDiv) {
         if (!valid) {
-          errorDiv.textContent =
-            "Por favor completa los campos obligatorios marcados con * antes de continuar.";
+          // Verificar si hay errores de email específicos
+          const emailErrors = stepElement.querySelectorAll('.email-error-message');
+          const hasEmailErrors = Array.from(emailErrors).some(span => span.textContent !== '');
+
+          if (hasEmailErrors) {
+            errorDiv.textContent = "Por favor corrige los emails inválidos antes de continuar.";
+          } else {
+            errorDiv.textContent = "Por favor completa los campos obligatorios marcados con * antes de continuar.";
+          }
         } else {
           errorDiv.textContent = "";
         }
