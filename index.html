@@ -1249,6 +1249,7 @@
     const medioSelect = document.getElementById("medio_reclutamiento");
     const campoRecomendador = document.getElementById("campo-recomendador");
     const fechaNacimientoInput = document.getElementById("fecha_nacimiento");
+    const fechaExpedicionInput = document.getElementById("fecha_expedicion");
     const edadInput = document.getElementById("edad");
 
     // Paso 0 (Ingreso)
@@ -3010,8 +3011,6 @@
       }
     });
 
-    // ⭐ FUNCIÓN PARA PRELLENAR DATOS PERSONALES ⭐
-    // ⭐ FUNCIÓN PARA PRELLENAR DATOS PERSONALES ⭐
     function prellenarDatosPersonales() {
       // Lo que se guardó en el paso 0
       const tipo = sessionStorage.getItem("tipo_ingreso");
