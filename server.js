@@ -812,8 +812,8 @@ app.post("/api/hv/registrar", async (req, res) => {
           fecha_expedicion = ?,
           estado_civil = ?,
           direccion_barrio = ?,
-          departamento = ?,          -- CORREGIDO: la tabla tiene 'departamento' no 'departamento_residencia'
-          ciudad = ?,                -- CORREGIDO: la tabla tiene 'ciudad' no 'ciudad_residencia'
+          departamento = ?, 
+          ciudad = ?,
           telefono = ?,
           correo_electronico = ?,
           eps = ?,
@@ -900,8 +900,8 @@ app.post("/api/hv/registrar", async (req, res) => {
           fecha_expedicion,
           estado_civil,
           direccion_barrio,
-          departamento,          -- CORREGIDO: la tabla tiene 'departamento'
-          ciudad,                -- CORREGIDO: la tabla tiene 'ciudad'
+          departamento, 
+          ciudad,  
           telefono,
           correo_electronico,
           eps,
@@ -934,8 +934,8 @@ app.post("/api/hv/registrar", async (req, res) => {
         fecha_expedicion || null,
         estado_civil || null,
         direccion_barrio || null,
-        departamento_residencia || null,  // Se mapea al campo 'departamento'
-        ciudad_residencia || null,        // Se mapea al campo 'ciudad'
+        departamento_residencia || null,
+        ciudad_residencia || null,
         telefono || null,
         correo_electronico || null,
         eps || null,
@@ -1282,6 +1282,7 @@ app.post("/api/hv/registrar", async (req, res) => {
       CORREO: escapeHtml(correo_electronico || ""),
       DIRECCION: escapeHtml(direccion_barrio || ""),
       FECHA_NACIMIENTO: escapeHtml(fecha_nacimiento || ""),
+      FECHA_EXPEDICION: escapeHtml(fecha_expedicion || ""),
       ESTADO_CIVIL: escapeHtml(estado_civil || ""),
       EPS: escapeHtml(eps || ""),
       AFP: escapeHtml(afp || ""),
