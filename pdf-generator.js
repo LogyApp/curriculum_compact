@@ -57,19 +57,15 @@ async function htmlToPdfBuffer(html) {
   }
 }
 
-// ==========================================
-//  FUNCIÓN PRINCIPAL - CORREGIDA
-// ==========================================
-
 export async function generateAndUploadPdf({
   identificacion,
   dataObjects = {},
-  destNamePrefix = "cv",
+  idHv,
   bucket,
   bucketName,
-  deleteOldFiles = true  // Nueva opción para limpiar archivos viejos
+  deleteOldFiles = true
 }) {
-  console.log(`📄 [PDF Generator] Iniciando para: ${identificacion}`);
+  console.log(`📄 [PDF Generator] Iniciando para: ${identificacion}, ID_HV: ${idHv || 'no proporcionado'}`);
 
   try {
     // ========== VALIDACIONES ==========
@@ -81,6 +77,10 @@ export async function generateAndUploadPdf({
       throw new Error("❌ 'bucketName' es requerido. Pásalo desde server.js");
     }
 
+    if (!idHv) {
+      throw new Error("❌ 'idHv' es requerido para generar el nombre del archivo en el formato {identificación}.HDV.{id}");
+    }
+
     console.log(`🏢 Bucket recibido: ${bucketName}`);
 
     // ========== LIMPIAR ARCHIVOS ANTIGUOS ==========
@@ -88,30 +88,27 @@ export async function generateAndUploadPdf({
       try {
         console.log(`🧹 Buscando PDFs antiguos para: ${identificacion}`);
 
-        // Listar todos los archivos en la carpeta del aspirante
-        const [files] = await bucket.getFiles({
-          prefix: `${identificacion}/`
-        });
+        // NUEVO: Buscar archivos con el patrón {identificacion}.HDV.*.pdf
+        const [files] = await bucket.getFiles();
 
-        if (files.length > 0) {
-          console.log(`📁 Encontrados ${files.length} archivos en carpeta ${identificacion}/`);
+        // Filtrar archivos que coincidan con el patrón
+        const pattern = new RegExp(`^${identificacion}\\.HDV\\.\\d+\\.pdf$`);
+        const oldPdfFiles = files.filter(file => pattern.test(file.name));
 
-          // Filtrar solo PDFs (por si hay otros tipos de archivos)
-          const pdfFiles = files.filter(file => file.name.endsWith('.pdf'));
+        if (oldPdfFiles.length > 0) {
+          console.log(`📁 Encontrados ${oldPdfFiles.length} PDFs antiguos con el patrón ${identificacion}.HDV.*.pdf`);
 
-          if (pdfFiles.length > 0) {
-            console.log(`🗑️ Eliminando ${pdfFiles.length} PDFs antiguos...`);
+          // Eliminar en paralelo
+          await Promise.all(
+            oldPdfFiles.map(file => {
+              console.log(`   🗑️ Eliminando: ${file.name}`);
+              return file.delete();
+            })
+          );
 
-            // Eliminar en paralelo
-            await Promise.all(
-              pdfFiles.map(file => {
-                console.log(`   🗑️ Eliminando: ${file.name}`);
-                return file.delete();
-              })
-            );
-
-            console.log(`✅ PDFs antiguos eliminados exitosamente`);
-          }
+          console.log(`✅ PDFs antiguos eliminados exitosamente`);
+        } else {
+          console.log(`📁 No se encontraron PDFs antiguos con el patrón especificado`);
         }
       } catch (cleanupError) {
         console.warn(`⚠️ Error limpiando archivos antiguos: ${cleanupError.message}`);
@@ -155,10 +152,10 @@ export async function generateAndUploadPdf({
     const pdfBuffer = await htmlToPdfBuffer(html);
     console.log(`✅ PDF generado: ${pdfBuffer.length} bytes`);
 
-    // ========== NOMBRE DEL ARCHIVO ==========
-    const timestamp = Date.now();
-    const destName = `${identificacion}/${destNamePrefix}_${timestamp}.pdf`;
-    console.log(`📤 Subiendo a GCS: ${destName}`);
+    // ========== NOMBRE DEL ARCHIVO (NUEVO FORMATO) ==========
+    // Formato: {identificación}.HDV.{id en la base de datos}.pdf
+    const destName = `${identificacion}/${identificacion}.HDV.${idHv}.pdf`;
+    console.log(`📤 Subiendo a GCS con nuevo formato: ${destName}`);
 
     // ========== SUBIR A GCS ==========
     const file = bucket.file(destName);
@@ -167,7 +164,7 @@ export async function generateAndUploadPdf({
       contentType: "application/pdf",
       metadata: {
         cacheControl: 'public, max-age=31536000',
-        contentDisposition: `inline; filename="CV_${identificacion}.pdf"`
+        contentDisposition: `inline; filename="HV_${identificacion}.pdf"`
       },
       resumable: false
     });
@@ -216,7 +213,8 @@ export async function generateAndUploadPdf({
       publicUrl,      // URL pública (SIEMPRE funciona)
       signedUrl,      // Signed URL (opcional)
       size: pdfBuffer.length,
-      timestamp
+      timestamp: Date.now(),
+      idHv            // Devolvemos el ID para referencia
     };
 
   } catch (error) {
@@ -225,7 +223,6 @@ export async function generateAndUploadPdf({
     throw error;
   }
 }
-
 // ==========================================
 //  FUNCIONES AUXILIARES ADICIONALES
 // ==========================================

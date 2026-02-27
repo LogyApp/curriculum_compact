@@ -706,7 +706,8 @@ app.post("/api/hv/registrar", async (req, res) => {
     referencias = [],
     contacto_emergencia = {},
     metas_personales = {},
-    seguridad = {}
+    seguridad = {},
+    firma_base64
   } = datosAspirante;
 
   const esNuevoVerificado = await verificarSiEsNuevo(identificacion);
@@ -968,6 +969,8 @@ app.post("/api/hv/registrar", async (req, res) => {
     if (!idAspirante) {
       throw new Error("No se pudo obtener id_aspirante después de insert/update");
     }
+
+    const hvId = idAspirante;
 
     // ========== 5. INSERTAR DATOS RELACIONADOS ==========
 
@@ -1322,6 +1325,59 @@ app.post("/api/hv/registrar", async (req, res) => {
     transactionCommitted = true;
     console.log(`✅ Transacción de BD completada para: ${identificacion}`);
 
+    // ========== SUBIR FIRMA ==========
+    console.log('=== VERIFICACIÓN FIRMA ===');
+    console.log('firma_base64 (variable):', firma_base64 ? 'EXISTE' : 'NO EXISTE');
+    console.log('datosAspirante.firma_base64:', datosAspirante.firma_base64 ? 'EXISTE' : 'NO EXISTE');
+    let firmaUrl = null;
+    const signatureData = firma_base64;
+
+    if (signatureData && bucket && idAspirante) {
+      try {
+        console.log(`🖊️ Subiendo firma...`);
+        console.log('📏 Longitud del base64:', signatureData.length);
+        console.log('📝 Primeros 50 caracteres:', signatureData.substring(0, 50));
+
+        // Extraer base64
+        let base64Data = signatureData;
+        if (signatureData.includes('base64,')) {
+          base64Data = signatureData.split('base64,')[1];
+          console.log('📏 Longitud después de limpiar:', base64Data.length);
+        }
+
+        const signatureBuffer = Buffer.from(base64Data, 'base64');
+        console.log('📦 Tamaño del buffer:', signatureBuffer.length, 'bytes');
+
+        // Si el buffer es muy pequeño (menos de 100 bytes), probablemente está vacío
+        if (signatureBuffer.length < 100) {
+          console.warn('⚠️ La firma parece estar vacía o es muy pequeña');
+        }
+
+        const signatureName = `${identificacion}/${identificacion}.FIRMA.${idAspirante}.png`;
+
+        // Subir a GCS
+        const file = bucket.file(signatureName);
+        await file.save(signatureBuffer, {
+          metadata: { contentType: 'image/png' }
+        });
+
+        firmaUrl = `https://storage.googleapis.com/${GCS_BUCKET}/${signatureName}`;
+
+        // Guardar URL en BD
+        await conn.query(
+          `UPDATE Dynamic_hv_aspirante SET firma_url = ? WHERE id_aspirante = ?`,
+          [firmaUrl, idAspirante]
+        );
+
+        // Agregar al PDF
+        aspiranteData.FIRMA_URL = firmaUrl;
+
+        console.log(`✅ Firma subida: ${firmaUrl}`);
+      } catch (error) {
+        console.error(`❌ Error con firma: ${error.message}`);
+      }
+    }
+
     // ========== 8. GENERAR Y SUBIR PDF (FUERA DE LA TRANSACCIÓN) ==========
     let pdfResult = null;
     let pdfUrl = null;
@@ -1336,13 +1392,13 @@ app.post("/api/hv/registrar", async (req, res) => {
       try {
         console.log(`📁 Bucket disponible: ${GCS_BUCKET}`);
 
-        // Generar PDF con timeout
         const pdfPromise = generateAndUploadPdf({
           identificacion,
           dataObjects: aspiranteData,
+          idHv: idAspirante,
           bucket,
           bucketName: GCS_BUCKET,
-          deleteOldFiles: false // Ya manejamos la limpieza al inicio
+          deleteOldFiles: true
         });
 
         // Timeout de 60 segundos
