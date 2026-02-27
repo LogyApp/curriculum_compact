@@ -81,7 +81,7 @@ async function validarIngreso() {
     }
 
     try {
-        const resp = await fetch(`http://localhost:8080/api/aspirante?identificacion=${id}`);
+        const resp = await fetch(`https://curriculum-compact-594761951101.europe-west1.run.app/api/aspirante?identificacion=${id}`);
         const data = await resp.json();
 
         if (data.existe) {
@@ -1354,7 +1354,7 @@ async function uploadPhoto() {
         form.append("identificacion", identificacionVal);
         form.append("photo", file);
 
-        const resp = await fetch("http://localhost:8080/api/hv/upload-photo", {
+        const resp = await fetch("https://curriculum-compact-594761951101.europe-west1.run.app/api/hv/upload-photo", {
             method: "POST",
             body: form
         });
@@ -1720,7 +1720,7 @@ form.addEventListener("submit", async (e) => {
         const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
         // Registrar la hoja de vida
-        const resp = await fetch("http://localhost:8080/api/hv/registrar", {
+        const resp = await fetch("https://curriculum-compact-594761951101.europe-west1.run.app/api/hv/registrar", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(data),
@@ -1868,7 +1868,7 @@ document.addEventListener("tipos-cargados", prellenarDatosPersonales);
 // ⭐ Cargar tipos de identificación dinámicos para el Paso 0 ⭐
 async function cargarTiposPaso0() {
     try {
-        const res = await fetch("http://localhost:8080/api/config/tipo-identificacion");
+        const res = await fetch("https://curriculum-compact-594761951101.europe-west1.run.app/api/config/tipo-identificacion");
         const tipos = await res.json();
 
         const select = document.getElementById("tipo_documento_ingreso");
@@ -1978,7 +1978,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 async function enviarCorreoAspirante(datosAspirante) {
     try {
-        const response = await fetch('http://localhost:8080/api/correo/aspirante', {
+        const response = await fetch('https://curriculum-compact-594761951101.europe-west1.run.app/api/correo/aspirante', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
