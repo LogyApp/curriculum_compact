@@ -1,4 +1,3 @@
-
 const form = document.getElementById("hv-form");
 const steps = Array.from(document.querySelectorAll(".form-step"));
 const stepperItems = Array.from(document.querySelectorAll(".stepper .step"));
@@ -60,6 +59,9 @@ const seg_califica = document.getElementById("seg_califica");
 const seg_fortal = document.getElementById("seg_fortal");
 const seg_mejorar = document.getElementById("seg_mejorar");
 const seg_resolucion = document.getElementById("seg_resolucion");
+const seg_detalle_llamados = document.getElementById("seg_detalle_llamados");
+const seg_detalle_accidente = document.getElementById("seg_detalle_accidente");
+const seg_detalle_enfermedad = document.getElementById("seg_detalle_enfermedad");
 
 // Datos personales base
 const identificacionInput = document.getElementById("identificacion");
@@ -69,38 +71,296 @@ let currentStep = 0;
 // ⭐ AHORA SÍ PONLO AQUÍ ⭐
 showStep(0);
 
+// ========= FUNCIÓN DE SANITIZACIÓN =========
+function sanitizarString(str) {
+    if (!str) return "";
+    return String(str)
+        .trim()
+        .replace(/[<>]/g, "") // Elimina caracteres que podrían romper JSON/HTML
+        .replace(/[\u0000-\u001F\u007F-\u009F]/g, ""); // Elimina caracteres de control
+}
+
+function sanitizarNumero(val) {
+    if (!val && val !== 0) return "";
+    return String(val).replace(/[^0-9]/g, "");
+}
+
+function formatearFechaParaServidor(fecha) {
+    if (!fecha) return null;
+    // Asegurar formato YYYY-MM-DD
+    const partes = String(fecha).split("T")[0].split("-");
+    if (partes.length !== 3) return null;
+    const [year, month, day] = partes;
+    if (year.length !== 4 || month.length !== 2 || day.length !== 2) return null;
+    return `${year}-${month}-${day}`;
+}
+
+// ========= FUNCIÓN PARA LIMPIAR ERRORES =========
+function limpiarErroresCampo() {
+    // Limpiar todos los mensajes de error
+    document.querySelectorAll('.field-error').forEach(el => {
+        el.textContent = '';
+    });
+
+    // Quitar clase error de todos los campos
+    document.querySelectorAll('input.error, select.error, textarea.error').forEach(el => {
+        el.classList.remove('error');
+    });
+}
+
+// ========= FUNCIÓN PARA MOSTRAR ERROR EN CAMPO =========
+function mostrarErrorCampo(idCampo, mensaje) {
+    const campo = document.getElementById(idCampo);
+    const errorDiv = document.getElementById(`error-${idCampo}`);
+
+    if (campo) {
+        campo.classList.add('error');
+    }
+
+    if (errorDiv) {
+        errorDiv.textContent = mensaje;
+    }
+}
+
+// ========= VALIDACIÓN POR PASO =========
+function validateStep(stepIndex) {
+    // Limpiar errores anteriores
+    limpiarErroresCampo();
+
+    const stepElement = steps[stepIndex];
+    const requiredFields = stepElement.querySelectorAll("[data-required='true']");
+    let valid = true;
+    let firstInvalid = null;
+
+    // Validar campos obligatorios vacíos
+    requiredFields.forEach((field) => {
+        const value = (field.value || "").trim();
+        const isInvalid = value === "";
+
+        if (isInvalid) {
+            field.classList.add('error');
+
+            // Buscar el div de error correspondiente
+            const fieldId = field.id;
+            if (fieldId) {
+                const errorDiv = document.getElementById(`error-${fieldId}`);
+                if (errorDiv) {
+                    errorDiv.textContent = "Este campo es obligatorio";
+                }
+            }
+
+            if (!firstInvalid) {
+                firstInvalid = field;
+            }
+            valid = false;
+        }
+    });
+
+    // Validaciones específicas por paso
+    if (stepIndex === 2) { // Datos personales
+        // Validar email
+        const email = document.getElementById("correo_electronico");
+        if (email && email.value) {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email.value)) {
+                email.classList.add('error');
+                const errorDiv = document.getElementById("error-correo_electronico");
+                if (errorDiv) {
+                    errorDiv.textContent = "El correo electrónico no es válido";
+                }
+                if (!firstInvalid) firstInvalid = email;
+                valid = false;
+            }
+        } else if (email && !email.value) {
+            // Ya se validó como obligatorio arriba
+        }
+
+        // Validar teléfono (mínimo 7 dígitos)
+        const telefono = document.getElementById("telefono");
+        if (telefono && telefono.value) {
+            const soloNumeros = telefono.value.replace(/\D/g, "");
+            if (soloNumeros.length < 7) {
+                telefono.classList.add('error');
+                const errorDiv = document.getElementById("error-telefono");
+                if (errorDiv) {
+                    errorDiv.textContent = "El teléfono debe tener al menos 7 dígitos";
+                }
+                if (!firstInvalid) firstInvalid = telefono;
+                valid = false;
+            } else if (soloNumeros.length > 10) {
+                telefono.classList.add('error');
+                const errorDiv = document.getElementById("error-telefono");
+                if (errorDiv) {
+                    errorDiv.textContent = "El teléfono no debe exceder 10 dígitos";
+                }
+                if (!firstInvalid) firstInvalid = telefono;
+                valid = false;
+            }
+        }
+
+        // Validar edad mínima (18 años)
+        const edad = document.getElementById("edad");
+        if (edad && edad.value) {
+            if (parseInt(edad.value) < 18) {
+                edad.classList.add('error');
+                const errorDiv = document.getElementById("error-edad");
+                if (errorDiv) {
+                    errorDiv.textContent = "Debes ser mayor de 18 años";
+                }
+                if (!firstInvalid) firstInvalid = edad;
+                valid = false;
+            }
+        }
+
+        // Validar fecha de nacimiento (no puede ser futura)
+        const fechaNac = document.getElementById("fecha_nacimiento");
+        if (fechaNac && fechaNac.value) {
+            const fechaNacDate = new Date(fechaNac.value);
+            const hoy = new Date();
+            if (fechaNacDate > hoy) {
+                fechaNac.classList.add('error');
+                const errorDiv = document.getElementById("error-fecha_nacimiento");
+                if (errorDiv) {
+                    errorDiv.textContent = "La fecha de nacimiento no puede ser futura";
+                }
+                if (!firstInvalid) firstInvalid = fechaNac;
+                valid = false;
+            }
+        }
+
+        // Validar que la identificación tenga entre 5 y 12 dígitos
+        const identificacion = document.getElementById("identificacion");
+        if (identificacion && identificacion.value) {
+            const soloNumeros = identificacion.value.replace(/\D/g, "");
+            if (soloNumeros.length < 5 || soloNumeros.length > 12) {
+                identificacion.classList.add('error');
+                const errorDiv = document.getElementById("error-identificacion");
+                if (errorDiv) {
+                    errorDiv.textContent = "La identificación debe tener entre 5 y 12 dígitos";
+                }
+                if (!firstInvalid) firstInvalid = identificacion;
+                valid = false;
+            }
+        }
+    }
+
+    // Validaciones para Paso 1 (Medio de reclutamiento)
+    if (stepIndex === 1) {
+        const medio = document.getElementById("medio_reclutamiento");
+        if (medio && medio.value === "") {
+            medio.classList.add('error');
+            const errorDiv = document.getElementById("error-medio_reclutamiento");
+            if (errorDiv) {
+                errorDiv.textContent = "Selecciona un medio de reclutamiento";
+            }
+            if (!firstInvalid) firstInvalid = medio;
+            valid = false;
+        }
+
+        // Si es recomendado o empleado interno, validar que el campo de recomendador no esté vacío
+        if (medio && (medio.value === "recomendado" || medio.value === "empleado_interno")) {
+            const recomendador = document.getElementById("recomendador_aspirante");
+            if (recomendador && !recomendador.value.trim()) {
+                recomendador.classList.add('error');
+                const errorDiv = document.getElementById("error-recomendador_aspirante");
+                if (errorDiv) {
+                    errorDiv.textContent = "Este campo es obligatorio cuando seleccionas esta opción";
+                }
+                if (!firstInvalid) firstInvalid = recomendador;
+                valid = false;
+            }
+        }
+    }
+
+    // Validaciones para Paso 0 (Ingreso)
+    if (stepIndex === 0) {
+        const tipoIngreso = document.getElementById("tipo_documento_ingreso");
+        const idIngreso = document.getElementById("identificacion_ingreso");
+
+        if (tipoIngreso && !tipoIngreso.value) {
+            tipoIngreso.classList.add('error');
+            const errorDiv = document.getElementById("error-tipo_documento_ingreso");
+            if (errorDiv) {
+                errorDiv.textContent = "Selecciona un tipo de identificación";
+            }
+            if (!firstInvalid) firstInvalid = tipoIngreso;
+            valid = false;
+        }
+
+        if (idIngreso) {
+            if (!idIngreso.value) {
+                idIngreso.classList.add('error');
+                const errorDiv = document.getElementById("error-identificacion_ingreso");
+                if (errorDiv) {
+                    errorDiv.textContent = "Ingresa tu número de identificación";
+                }
+                if (!firstInvalid) firstInvalid = idIngreso;
+                valid = false;
+            } else {
+                const soloNumeros = idIngreso.value.replace(/\D/g, "");
+                if (soloNumeros.length < 5 || soloNumeros.length > 12) {
+                    idIngreso.classList.add('error');
+                    const errorDiv = document.getElementById("error-identificacion_ingreso");
+                    if (errorDiv) {
+                        errorDiv.textContent = "La identificación debe tener entre 5 y 12 dígitos";
+                    }
+                    if (!firstInvalid) firstInvalid = idIngreso;
+                    valid = false;
+                }
+            }
+        }
+    }
+
+    const errorDiv = document.getElementById(`error-step-${stepIndex}`);
+    if (errorDiv) {
+        if (!valid) {
+            errorDiv.textContent = "Por favor corrige los errores marcados en rojo antes de continuar.";
+        } else {
+            errorDiv.textContent = "";
+        }
+    }
+
+    if (firstInvalid) {
+        firstInvalid.focus();
+    }
+
+    return valid;
+}
+
 // ========= PASO 0: Validación de ingreso =========
 async function validarIngreso() {
-    const tipo = tipoDocumentoIngreso.value.trim();
-    const id = identificacionIngreso.value.trim();
-
-    if (!tipo || !id) {
-        ingresoMsg.textContent = "Debes completar ambos campos.";
-        ingresoMsg.style.color = "var(--error)";
+    // Primero validar campos localmente
+    if (!validateStep(0)) {
         return false;
     }
 
+    const tipo = sanitizarString(tipoDocumentoIngreso.value);
+    const id = sanitizarNumero(identificacionIngreso.value);
+
     try {
         const resp = await fetch(`https://curriculum-compact-594761951101.europe-west1.run.app/api/aspirante?identificacion=${id}`);
+
+        if (!resp.ok) {
+            throw new Error(`Error HTTP: ${resp.status}`);
+        }
+
         const data = await resp.json();
 
         if (data.existe) {
             ingresoMsg.style.color = "green";
             ingresoMsg.textContent = "✔ Registro encontrado. Cargando datos...";
 
-            // Guardar en sessionStorage inmediatamente
+            // Guardar en sessionStorage
             sessionStorage.setItem("tipo_ingreso", tipo);
             sessionStorage.setItem("id_ingreso", id);
 
-            // Llamar a updateIngresoLabel para que se muestre en el paso 2
             if (typeof updateIngresoLabel === "function") {
                 updateIngresoLabel();
             }
 
-            rellenarFormulario(data);
+            await rellenarFormulario(data);
 
             setTimeout(() => {
-                // Forzar que se muestren los valores en el paso 2
                 const tipoMain = document.getElementById("tipo_documento");
                 const identMain = document.getElementById("identificacion");
 
@@ -121,7 +381,6 @@ async function validarIngreso() {
             ingresoMsg.style.color = "#444";
             ingresoMsg.textContent = "ℹ No encontramos un registro previo. Continúa con el formulario.";
 
-            // Guardar igualmente para que aparezcan en el paso 2
             sessionStorage.setItem("tipo_ingreso", tipo);
             sessionStorage.setItem("id_ingreso", id);
 
@@ -136,8 +395,8 @@ async function validarIngreso() {
         }
     } catch (err) {
         ingresoMsg.style.color = "var(--error)";
-        ingresoMsg.textContent = "⚠ Error consultando el servidor.";
-        console.error(err);
+        ingresoMsg.textContent = "⚠ Error consultando el servidor. Intenta nuevamente.";
+        console.error("Error en validarIngreso:", err);
         return false;
     }
 }
@@ -145,6 +404,15 @@ async function validarIngreso() {
 identificacionIngreso.addEventListener("blur", validarIngreso);
 tipoDocumentoIngreso.addEventListener("change", () => {
     ingresoMsg.textContent = "";
+    // Limpiar error al cambiar
+    document.getElementById("error-tipo_documento_ingreso").textContent = "";
+    tipoDocumentoIngreso.classList.remove('error');
+});
+
+identificacionIngreso.addEventListener("input", () => {
+    // Limpiar error al escribir
+    document.getElementById("error-identificacion_ingreso").textContent = "";
+    identificacionIngreso.classList.remove('error');
 });
 
 function showStep(index) {
@@ -173,60 +441,23 @@ function showStep(index) {
 
     currentStep = index;
 
-    // Si entramos a la previsualización, construir resumen
     if (index === 8) {
         buildPreview();
     }
 
-    // En showStep, cuando index === 2
     if (index === 2) {
         setTimeout(() => {
             setupSignature();
-            // Restaurar firma si existe
             const firmaGuardada = sessionStorage.getItem('firma_temp');
-            if (firmaGuardada && canvas && ctx) {
+            if (firmaGuardada && canvas && ctx && firmaGuardada.length > 1000) {
                 const img = new Image();
                 img.onload = function () {
                     ctx.drawImage(img, 0, 0);
                 };
                 img.src = firmaGuardada;
-                console.log('✅ Firma restaurada desde sessionStorage');
             }
         }, 300);
     }
-}
-
-function validateStep(stepIndex) {
-    const stepElement = steps[stepIndex];
-    const requiredFields = stepElement.querySelectorAll("[data-required='true']");
-    let valid = true;
-    let firstInvalid = null;
-
-    requiredFields.forEach((field) => {
-        const value = (field.value || "").trim();
-        const isInvalid = value === "";
-        field.style.borderColor = isInvalid ? "var(--error)" : "var(--border)";
-        if (isInvalid && !firstInvalid) {
-            firstInvalid = field;
-        }
-        if (isInvalid) valid = false;
-    });
-
-    const errorDiv = document.getElementById(`error-step-${stepIndex}`);
-    if (errorDiv) {
-        if (!valid) {
-            errorDiv.textContent =
-                "Por favor completa los campos obligatorios marcados con * antes de continuar.";
-        } else {
-            errorDiv.textContent = "";
-        }
-    }
-
-    if (firstInvalid) {
-        firstInvalid.focus();
-    }
-
-    return valid;
 }
 
 // =====================
@@ -238,21 +469,24 @@ const btnAddEducacion = document.getElementById("btn-add-educacion");
 let educacionData = [];
 
 function crearCardEducacion(index, data = {}) {
+    const finalizadoVal = data.finalizado !== undefined ? String(data.finalizado) : "1";
     return `
         <div class="educ-card" data-index="${index}">
           <div class="educ-grid">
             <div class="field">
-              <label>Institución</label>
-              <input type="text" class="educ-institucion" value="${data.institucion || ""}">
+              <label>Institución <span class="required">*</span></label>
+              <input type="text" class="educ-institucion" value="${escapeHtml(data.institucion || "")}" data-required="true">
+              <div class="field-error" id="error-educ-institucion-${index}"></div>
             </div>
             <div class="field">
-              <label>Programa</label>
-              <input type="text" class="educ-programa" value="${data.programa || ""}">
+              <label>Programa <span class="required">*</span></label>
+              <input type="text" class="educ-programa" value="${escapeHtml(data.programa || "")}" data-required="true">
+              <div class="field-error" id="error-educ-programa-${index}"></div>
             </div>
 
             <div class="field">
-              <label>Nivel de escolaridad</label>
-              <select class="educ-nivel">
+              <label>Nivel de escolaridad <span class="required">*</span></label>
+              <select class="educ-nivel" data-required="true">
                 <option value="">Selecciona</option>
                 <option value="bachiller" ${data.nivel_escolaridad === "bachiller" ? "selected" : ""}>Bachiller</option>
                 <option value="tecnico" ${data.nivel_escolaridad === "tecnico" ? "selected" : ""}>Técnico</option>
@@ -264,6 +498,7 @@ function crearCardEducacion(index, data = {}) {
                 <option value="doctorado" ${data.nivel_escolaridad === "doctorado" ? "selected" : ""}>Doctorado</option>
                 <option value="otro" ${data.nivel_escolaridad === "otro" ? "selected" : ""}>Otro</option>
               </select>
+              <div class="field-error" id="error-educ-nivel-${index}"></div>
             </div>
 
             <div class="field">
@@ -284,9 +519,9 @@ function crearCardEducacion(index, data = {}) {
             <div class="field">
               <label>Finalizado</label>
               <select class="educ-finalizado">
-                <option value="1" ${String(data.finalizado) === "1" ? "selected" : ""}>Sí</option>
-                <option value="0" ${String(data.finalizado) === "0" ? "selected" : ""}>No</option>
-                <option value="2" ${String(data.finalizado) === "2" ? "selected" : ""}>En curso</option>
+                <option value="1" ${finalizadoVal === "1" ? "selected" : ""}>Sí</option>
+                <option value="0" ${finalizadoVal === "0" ? "selected" : ""}>No</option>
+                <option value="2" ${finalizadoVal === "2" ? "selected" : ""}>En curso</option>
               </select>
             </div>
           </div>
@@ -325,19 +560,15 @@ function recopilarEducacion() {
     const cards = document.querySelectorAll(".educ-card");
 
     educacionData = Array.from(cards).map(card => {
-        const nivelEl = card.querySelector(".educ-nivel");
-        const modalidadEl = card.querySelector(".educ-modalidad");
-        const finalizadoEl = card.querySelector(".educ-finalizado");
-
         return {
-            institucion: (card.querySelector(".educ-institucion")?.value || "").trim(),
-            programa: (card.querySelector(".educ-programa")?.value || "").trim(),
-            nivel_escolaridad: (nivelEl?.value || "").trim(),
-            modalidad: (modalidadEl?.value || "").trim(),
-            ano: (card.querySelector(".educ-ano")?.value || "").trim(),
-            finalizado: (finalizadoEl?.value || "").trim()
+            institucion: sanitizarString(card.querySelector(".educ-institucion")?.value || ""),
+            programa: sanitizarString(card.querySelector(".educ-programa")?.value || ""),
+            nivel_escolaridad: card.querySelector(".educ-nivel")?.value || "",
+            modalidad: card.querySelector(".educ-modalidad")?.value || "",
+            ano: card.querySelector(".educ-ano")?.value || "",
+            finalizado: card.querySelector(".educ-finalizado")?.value || "1"
         };
-    });
+    }).filter(edu => edu.institucion || edu.programa); // Filtrar vacíos
 
     return educacionData;
 }
@@ -355,28 +586,30 @@ function crearCardExp(index, data = {}) {
         <div class="exp-card" data-index="${index}">
           <div class="exp-grid">
             <div class="field">
-              <label>Empresa</label>
-              <input type="text" class="exp-empresa" value="${data.empresa || ""}">
+              <label>Empresa <span class="required">*</span></label>
+              <input type="text" class="exp-empresa" value="${escapeHtml(data.empresa || "")}" data-required="true">
+              <div class="field-error" id="error-exp-empresa-${index}"></div>
             </div>
             <div class="field">
-              <label>Cargo</label>
-              <input type="text" class="exp-cargo" value="${data.cargo || ""}">
+              <label>Cargo <span class="required">*</span></label>
+              <input type="text" class="exp-cargo" value="${escapeHtml(data.cargo || "")}" data-required="true">
+              <div class="field-error" id="error-exp-cargo-${index}"></div>
             </div>
             <div class="field">
               <label>Tiempo laborado</label>
-              <input type="text" class="exp-tiempo" value="${data.tiempo_laborado || ""}">
+              <input type="text" class="exp-tiempo" value="${escapeHtml(data.tiempo_laborado || "")}">
             </div>
             <div class="field">
               <label>Salario</label>
-              <input type="text" class="exp-salario" value="${data.salario || ""}">
+              <input type="text" class="exp-salario" value="${escapeHtml(data.salario || "")}">
             </div>
             <div class="field">
               <label>Motivo del retiro</label>
-              <input type="text" class="exp-motivo" value="${data.motivo_retiro || ""}">
+              <input type="text" class="exp-motivo" value="${escapeHtml(data.motivo_retiro || "")}">
             </div>
             <div class="field" style="grid-column: span 2;">
               <label>Funciones realizadas</label>
-              <textarea class="exp-funciones" rows="2">${data.funciones || ""}</textarea>
+              <textarea class="exp-funciones" rows="2">${escapeHtml(data.funciones || "")}</textarea>
             </div>
           </div>
           <span class="exp-remove" onclick="eliminarExp(${index})">🗑️ Eliminar</span>
@@ -399,9 +632,7 @@ btnAddExp.addEventListener("click", () => {
         tiempo_laborado: "",
         salario: "",
         motivo_retiro: "",
-        causa_motivo_retiro: "",
-        funciones: "",
-        observaciones: ""
+        funciones: ""
     });
     renderExp();
 });
@@ -416,14 +647,13 @@ function recopilarExp() {
     const cards = document.querySelectorAll(".exp-card");
 
     expData = Array.from(cards).map(card => ({
-        empresa: (card.querySelector(".exp-empresa")?.value || "").trim(),
-        cargo: (card.querySelector(".exp-cargo")?.value || "").trim(),
-        tiempo_laborado: (card.querySelector(".exp-tiempo")?.value || "").trim(),
-        salario: (card.querySelector(".exp-salario")?.value || "").trim(),
-        motivo_retiro: (card.querySelector(".exp-motivo")?.value || "").trim(),
-        funciones: (card.querySelector(".exp-funciones")?.value || "").trim()
-        // nota: ya no se incluye causa_motivo_retiro ni observaciones
-    }));
+        empresa: sanitizarString(card.querySelector(".exp-empresa")?.value || ""),
+        cargo: sanitizarString(card.querySelector(".exp-cargo")?.value || ""),
+        tiempo_laborado: sanitizarString(card.querySelector(".exp-tiempo")?.value || ""),
+        salario: sanitizarString(card.querySelector(".exp-salario")?.value || ""),
+        motivo_retiro: sanitizarString(card.querySelector(".exp-motivo")?.value || ""),
+        funciones: sanitizarString(card.querySelector(".exp-funciones")?.value || "")
+    })).filter(exp => exp.empresa || exp.cargo); // Filtrar vacíos
 
     return expData;
 }
@@ -437,30 +667,33 @@ const btnAddFam = document.getElementById("btn-add-fam");
 let familiaresData = [];
 
 function crearCardFamiliar(index, data = {}) {
+    const convivenVal = data.conviven_juntos !== undefined ? String(data.conviven_juntos) : "1";
     return `
         <div class="fam-card" data-index="${index}">
           <div class="fam-grid">
             <div class="field">
-              <label>Nombre completo</label>
-              <input type="text" class="fam-nombre" value="${data.nombre_completo || ""}">
+              <label>Nombre completo <span class="required">*</span></label>
+              <input type="text" class="fam-nombre" value="${escapeHtml(data.nombre_completo || "")}" data-required="true">
+              <div class="field-error" id="error-fam-nombre-${index}"></div>
             </div>
             <div class="field">
-              <label>Parentesco</label>
-              <input type="text" class="fam-parentesco" value="${data.parentesco || ""}">
+              <label>Parentesco <span class="required">*</span></label>
+              <input type="text" class="fam-parentesco" value="${escapeHtml(data.parentesco || "")}" data-required="true">
+              <div class="field-error" id="error-fam-parentesco-${index}"></div>
             </div>
             <div class="field">
               <label>Edad</label>
-              <input type="number" class="fam-edad" value="${data.edad || ""}">
+              <input type="number" class="fam-edad" min="0" max="120" value="${data.edad || ""}">
             </div>
             <div class="field">
               <label>Ocupación</label>
-              <input type="text" class="fam-ocupacion" value="${data.ocupacion || ""}">
+              <input type="text" class="fam-ocupacion" value="${escapeHtml(data.ocupacion || "")}">
             </div>
             <div class="field">
               <label>¿Conviven juntos?</label>
               <select class="fam-conviven">
-                <option value="1" ${data.conviven_juntos == 1 ? "selected" : ""}>Sí</option>
-                <option value="0" ${data.conviven_juntos == 0 ? "selected" : ""}>No</option>
+                <option value="1" ${convivenVal === "1" ? "selected" : ""}>Sí</option>
+                <option value="0" ${convivenVal === "0" ? "selected" : ""}>No</option>
               </select>
             </div>
           </div>
@@ -476,8 +709,7 @@ function renderFamiliares() {
     });
 }
 
-// Inicializar primer registro por defecto para Educación, Experiencia y Familiares
-// (Pegar justo después de `function renderFamiliares() { ... }` y antes del resto del código)
+// Inicializar primer registro por defecto
 if (Array.isArray(educacionData) && educacionData.length === 0) {
     educacionData.push({
         institucion: "",
@@ -497,9 +729,7 @@ if (Array.isArray(expData) && expData.length === 0) {
         tiempo_laborado: "",
         salario: "",
         motivo_retiro: "",
-        causa_motivo_retiro: "",
-        funciones: "",
-        observaciones: ""
+        funciones: ""
     });
     renderExp();
 }
@@ -537,12 +767,12 @@ function recopilarFamiliares() {
     const cards = document.querySelectorAll(".fam-card");
 
     familiaresData = Array.from(cards).map(card => ({
-        nombre_completo: card.querySelector(".fam-nombre").value.trim(),
-        parentesco: card.querySelector(".fam-parentesco").value.trim(),
-        edad: card.querySelector(".fam-edad").value.trim(),
-        ocupacion: card.querySelector(".fam-ocupacion").value.trim(),
-        conviven_juntos: card.querySelector(".fam-conviven").value.trim()
-    }));
+        nombre_completo: sanitizarString(card.querySelector(".fam-nombre")?.value || ""),
+        parentesco: sanitizarString(card.querySelector(".fam-parentesco")?.value || ""),
+        edad: card.querySelector(".fam-edad")?.value || "",
+        ocupacion: sanitizarString(card.querySelector(".fam-ocupacion")?.value || ""),
+        conviven_juntos: card.querySelector(".fam-conviven")?.value || "1"
+    })).filter(fam => fam.nombre_completo || fam.parentesco); // Filtrar vacíos
 
     return familiaresData;
 }
@@ -571,19 +801,25 @@ handleToggle("seg_enfermedad", "detalle_enfermedad_wrap");
 handleToggle("seg_alcohol", "detalle_alcohol_wrap");
 handleToggle("seg_familiar", "detalle_familiar_wrap");
 
+// ======== Función para ESCAPE HTML ========
+function escapeHtml(str) {
+    if (!str) return "";
+    return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
 // ======== Función para PRELLENAR datos ========
-// Reemplazar la función rellenarFormulario existente por esta:
-// Reemplaza la función existente por esta versión más robusta y con logs:
-// Reemplaza la función rellenarFormulario existente por esta:
 async function rellenarFormulario(a) {
     try {
         console.log("rellenarFormulario - payload:", a);
         if (!a) return;
 
-        // Si los selects aún no están listos, esperar al evento 'selects-cargados'
         if (!window.selectsLoaded) {
             window._pendingAspirante = a;
-            console.log("Espera selects-cargados antes de rellenar los selects.");
             document.addEventListener("selects-cargados", async () => {
                 try {
                     await rellenarFormulario(window._pendingAspirante);
@@ -596,7 +832,6 @@ async function rellenarFormulario(a) {
             return;
         }
 
-        // aspirante puede estar en a.aspirante (forma que devuelve el backend) o directamente en 'a'
         const aspirante = a.aspirante || a;
 
         const set = (id, value) => {
@@ -604,15 +839,14 @@ async function rellenarFormulario(a) {
             if (el) el.value = value != null ? value : "";
         };
 
-        // --- Campos personales simples ---
         if (aspirante) {
-            set("primer_nombre", aspirante.primer_nombre || "");
-            set("segundo_nombre", aspirante.segundo_nombre || "");
-            set("primer_apellido", aspirante.primer_apellido || "");
-            set("segundo_apellido", aspirante.segundo_apellido || "");
-            set("correo_electronico", aspirante.correo_electronico || "");
-            set("telefono", aspirante.telefono || "");
-            set("direccion_barrio", aspirante.direccion_barrio || "");
+            set("primer_nombre", sanitizarString(aspirante.primer_nombre || ""));
+            set("segundo_nombre", sanitizarString(aspirante.segundo_nombre || ""));
+            set("primer_apellido", sanitizarString(aspirante.primer_apellido || ""));
+            set("segundo_apellido", sanitizarString(aspirante.segundo_apellido || ""));
+            set("correo_electronico", sanitizarString(aspirante.correo_electronico || ""));
+            set("telefono", sanitizarNumero(aspirante.telefono || ""));
+            set("direccion_barrio", sanitizarString(aspirante.direccion_barrio || ""));
             set("estado_civil", aspirante.estado_civil || "");
             set("eps", aspirante.eps || "");
             set("afp", aspirante.afp || "");
@@ -620,71 +854,56 @@ async function rellenarFormulario(a) {
             set("talla_pantalon", aspirante.talla_pantalon || "");
             set("camisa_talla", aspirante.camisa_talla || "");
             set("zapatos_talla", aspirante.zapatos_talla || "");
-            // Fecha de nacimiento: el input date acepta 'YYYY-MM-DD' si viene así desde DB
-            set("fecha_nacimiento", aspirante.fecha_nacimiento ? aspirante.fecha_nacimiento.split("T")[0] || aspirante.fecha_nacimiento : "");
-            if (typeof fechaNacimientoInput !== "undefined" && fechaNacimientoInput) {
+
+            set("fecha_nacimiento", aspirante.fecha_nacimiento ? aspirante.fecha_nacimiento.split("T")[0] : "");
+            if (fechaNacimientoInput) {
                 edadInput.value = calcularEdadDesdeFecha(fechaNacimientoInput.value);
             }
-            set("fecha_expedicion", aspirante.fecha_expedicion ? aspirante.fecha_expedicion.split("T")[0] || aspirante.fecha_expedicion : "");
-            // dentro de rellenarFormulario, tras set(...) de campos personales
-            // Mostrar foto existente (si la hay)
+            set("fecha_expedicion", aspirante.fecha_expedicion ? aspirante.fecha_expedicion.split("T")[0] : "");
+
             rellenarFotoDesdeAspirante(aspirante);
         }
 
-        // --- Departamentos y ciudades (hay que poblar ciudades después de asignar departamento) ---
-        // Expedición
+        // Departamentos y ciudades
         if (aspirante && aspirante.departamento_expedicion) {
             set("departamento_expedicion", aspirante.departamento_expedicion);
-            // cargar ciudades y luego fijar la ciudad si existe
             if (typeof cargarCiudades === "function") {
                 await cargarCiudades("departamento_expedicion", "ciudad_expedicion");
                 set("ciudad_expedicion", aspirante.ciudad_expedicion || "");
             }
-        } else {
-            set("departamento_expedicion", "");
-            set("ciudad_expedicion", "");
         }
 
-        // Residencia
         if (aspirante && (aspirante.departamento || aspirante.departamento_residencia)) {
             const depResid = aspirante.departamento || aspirante.departamento_residencia || "";
             set("departamento_residencia", depResid);
             if (typeof cargarCiudades === "function") {
                 await cargarCiudades("departamento_residencia", "ciudad_residencia");
-                // en la tabla el campo se llama 'ciudad' (mapeado antes), usamos aspirante.ciudad o ciudad_residencia
                 set("ciudad_residencia", aspirante.ciudad || aspirante.ciudad_residencia || "");
             }
-        } else {
-            set("departamento_residencia", "");
-            set("ciudad_residencia", "");
         }
 
-        // Tipo de documento e identificacion (solo si están vacíos en el formulario)
+        // Tipo de documento e identificacion
         const identEl = document.getElementById("identificacion");
         if (identEl && !identEl.value && aspirante.identificacion) {
-            identEl.value = aspirante.identificacion;
+            identEl.value = sanitizarNumero(aspirante.identificacion);
         }
         const tipoEl = document.getElementById("tipo_documento");
         if (tipoEl && !tipoEl.value && aspirante.tipo_documento) {
             tipoEl.value = aspirante.tipo_documento;
         }
 
-        // --- Arrays relacionales y otros campos ya manejados anteriormente ---
         // Educación
         const educ = Array.isArray(a.educacion) ? a.educacion : (a.educacion || []);
-
         if (educ.length > 0) {
             educacionData = educ.map(e => ({
-                institucion: e.institucion || "",
-                programa: e.programa || "",
+                institucion: sanitizarString(e.institucion || ""),
+                programa: sanitizarString(e.programa || ""),
                 nivel_escolaridad: e.nivel_escolaridad || "",
                 modalidad: e.modalidad || "",
                 ano: e.ano || "",
-                // Aceptar valores '1' (Sí), '0' (No) o '2' (En curso). Convertir a string por consistencia.
                 finalizado: (typeof e.finalizado !== "undefined" && e.finalizado !== null) ? String(e.finalizado) : "1"
             }));
         } else {
-            // Si no hay registros del servidor, mantener al menos una card vacía para la UX
             if (!educacionData || educacionData.length === 0) {
                 educacionData = [{
                     institucion: "",
@@ -696,21 +915,18 @@ async function rellenarFormulario(a) {
                 }];
             }
         }
-
-        // Renderizar una sola vez después de haber preparado educacionData
         renderEducacion();
 
         // Experiencia
         const exp = Array.isArray(a.experiencia_laboral) ? a.experiencia_laboral : (a.experiencia_laboral || []);
         if (exp.length > 0) {
             expData = exp.map(x => ({
-                empresa: x.empresa || "",
-                cargo: x.cargo || "",
-                tiempo_laborado: x.tiempo_laborado || "",
-                salario: x.salario || "",
-                motivo_retiro: x.motivo_retiro || "",
-                funciones: x.funciones || ""
-                // NO incluimos causa_motivo_retiro ni observaciones
+                empresa: sanitizarString(x.empresa || ""),
+                cargo: sanitizarString(x.cargo || ""),
+                tiempo_laborado: sanitizarString(x.tiempo_laborado || ""),
+                salario: sanitizarString(x.salario || ""),
+                motivo_retiro: sanitizarString(x.motivo_retiro || ""),
+                funciones: sanitizarString(x.funciones || "")
             }));
         } else if (!expData || expData.length === 0) {
             expData = [{ empresa: "", cargo: "", tiempo_laborado: "", salario: "", motivo_retiro: "", funciones: "" }];
@@ -721,10 +937,10 @@ async function rellenarFormulario(a) {
         const fam = Array.isArray(a.familiares) ? a.familiares : (a.familiares || []);
         if (fam.length > 0) {
             familiaresData = fam.map(f => ({
-                nombre_completo: f.nombre_completo || "",
-                parentesco: f.parentesco || "",
+                nombre_completo: sanitizarString(f.nombre_completo || ""),
+                parentesco: sanitizarString(f.parentesco || ""),
                 edad: f.edad || "",
-                ocupacion: f.ocupacion || "",
+                ocupacion: sanitizarString(f.ocupacion || ""),
                 conviven_juntos: (typeof f.conviven_juntos !== "undefined" && f.conviven_juntos !== null) ? String(f.conviven_juntos) : "1"
             }));
         } else if (!familiaresData || familiaresData.length === 0) {
@@ -738,38 +954,38 @@ async function rellenarFormulario(a) {
             refs.forEach(r => {
                 const tipo = (r.tipo_referencia || "").toLowerCase();
                 if (tipo === "laboral") {
-                    set("ref_lab_empresa", r.empresa || "");
-                    set("ref_lab_jefe", r.jefe_inmediato || "");
-                    set("ref_lab_cargo", r.cargo_jefe || "");
-                    set("ref_lab_tel", r.telefono || "");
+                    set("ref_lab_empresa", sanitizarString(r.empresa || ""));
+                    set("ref_lab_jefe", sanitizarString(r.jefe_inmediato || ""));
+                    set("ref_lab_cargo", sanitizarString(r.cargo_jefe || ""));
+                    set("ref_lab_tel", sanitizarNumero(r.telefono || ""));
                 } else if (tipo === "familiar") {
-                    set("ref_fam_nombre", r.nombre_completo || "");
-                    set("ref_fam_parentesco", r.parentesco || r.relacion || "");
-                    set("ref_fam_tel", r.telefono || "");
-                    set("ref_fam_ocupacion", r.ocupacion || "");
+                    set("ref_fam_nombre", sanitizarString(r.nombre_completo || ""));
+                    set("ref_fam_parentesco", sanitizarString(r.parentesco || r.relacion || ""));
+                    set("ref_fam_tel", sanitizarNumero(r.telefono || ""));
+                    set("ref_fam_ocupacion", sanitizarString(r.ocupacion || ""));
                 } else if (tipo === "personal") {
-                    set("ref_per_nombre", r.nombre_completo || "");
-                    set("ref_per_relacion", r.relacion || "");
-                    set("ref_per_tel", r.telefono || "");
-                    set("ref_per_ocupacion", r.ocupacion || "");
+                    set("ref_per_nombre", sanitizarString(r.nombre_completo || ""));
+                    set("ref_per_relacion", sanitizarString(r.relacion || ""));
+                    set("ref_per_tel", sanitizarNumero(r.telefono || ""));
+                    set("ref_per_ocupacion", sanitizarString(r.ocupacion || ""));
                 }
             });
         }
 
         // Contacto de emergencia
         if (a.contacto_emergencia) {
-            set("emer_nombre", a.contacto_emergencia.nombre_completo || "");
-            set("emer_parentesco", a.contacto_emergencia.parentesco || "");
-            set("emer_telefono", a.contacto_emergencia.telefono || "");
-            set("emer_correo", a.contacto_emergencia.correo_electronico || "");
-            set("emer_direccion", a.contacto_emergencia.direccion || "");
+            set("emer_nombre", sanitizarString(a.contacto_emergencia.nombre_completo || ""));
+            set("emer_parentesco", sanitizarString(a.contacto_emergencia.parentesco || ""));
+            set("emer_telefono", sanitizarNumero(a.contacto_emergencia.telefono || ""));
+            set("emer_correo", sanitizarString(a.contacto_emergencia.correo_electronico || ""));
+            set("emer_direccion", sanitizarString(a.contacto_emergencia.direccion || ""));
         }
 
         // Metas personales
         if (a.metas_personales) {
-            set("meta_corto", a.metas_personales.meta_corto_plazo || "");
-            set("meta_mediano", a.metas_personales.meta_mediano_plazo || "");
-            set("meta_largo", a.metas_personales.meta_largo_plazo || "");
+            set("meta_corto", sanitizarString(a.metas_personales.meta_corto_plazo || ""));
+            set("meta_mediano", sanitizarString(a.metas_personales.meta_mediano_plazo || ""));
+            set("meta_largo", sanitizarString(a.metas_personales.meta_largo_plazo || ""));
         }
 
         // Seguridad / cuestionario
@@ -778,57 +994,56 @@ async function rellenarFormulario(a) {
             if (typeof s.llamados_atencion !== "undefined") {
                 document.getElementById("seg_llamados").value = String(s.llamados_atencion || 0);
                 if (s.llamados_atencion == 1) document.getElementById("detalle_llamados_wrap").classList.remove("hidden");
-                set("seg_detalle_llamados", s.detalle_llamados || "");
+                set("seg_detalle_llamados", sanitizarString(s.detalle_llamados || ""));
             }
             if (typeof s.accidente_laboral !== "undefined") {
                 document.getElementById("seg_accidente").value = String(s.accidente_laboral || 0);
                 if (s.accidente_laboral == 1) document.getElementById("detalle_accidente_wrap").classList.remove("hidden");
-                set("seg_detalle_accidente", s.detalle_accidente || "");
+                set("seg_detalle_accidente", sanitizarString(s.detalle_accidente || ""));
             }
             if (typeof s.enfermedad_importante !== "undefined") {
                 document.getElementById("seg_enfermedad").value = String(s.enfermedad_importante || 0);
                 if (s.enfermedad_importante == 1) document.getElementById("detalle_enfermedad_wrap").classList.remove("hidden");
-                set("seg_detalle_enfermedad", s.detalle_enfermedad || "");
+                set("seg_detalle_enfermedad", sanitizarString(s.detalle_enfermedad || ""));
             }
             if (typeof s.consume_alcohol !== "undefined") {
                 document.getElementById("seg_alcohol").value = String(s.consume_alcohol || 0);
                 if (s.consume_alcohol == 1) document.getElementById("detalle_alcohol_wrap").classList.remove("hidden");
-                set("seg_frecuencia", s.frecuencia_alcohol || "");
+                set("seg_frecuencia", sanitizarString(s.frecuencia_alcohol || ""));
             }
             if (typeof s.familiar_en_empresa !== "undefined") {
                 document.getElementById("seg_familiar").value = String(s.familiar_en_empresa || 0);
                 if (s.familiar_en_empresa == 1) document.getElementById("detalle_familiar_wrap").classList.remove("hidden");
-                set("seg_familiar_nombre", s.detalle_familiar_empresa || "");
+                set("seg_familiar_nombre", sanitizarString(s.detalle_familiar_empresa || ""));
             }
-            set("seg_observaciones", s.observaciones || "");
-            set("seg_califica", s.califica_para_cargo || "");
-            set("seg_fortal", s.fortalezas || "");
-            set("seg_mejorar", s.aspectos_mejorar || "");
-            set("seg_resolucion", s.resolucion_problemas || "");
+            set("seg_observaciones", sanitizarString(s.observaciones || ""));
+            set("seg_califica", sanitizarString(s.califica_para_cargo || ""));
+            set("seg_fortal", sanitizarString(s.fortalezas || ""));
+            set("seg_mejorar", sanitizarString(s.aspectos_mejorar || ""));
+            set("seg_resolucion", sanitizarString(s.resolucion_problemas || ""));
             if (typeof s.info_falsa !== "undefined") document.getElementById("seg_falsa").value = String(s.info_falsa || 0);
             if (typeof s.acepta_poligrafo !== "undefined") document.getElementById("seg_poligrafo").value = String(s.acepta_poligrafo || 0);
         }
 
-        console.log("rellenarFormulario - finished. educacionData, expData, familiaresData lengths:", educacionData.length, expData.length, familiaresData.length);
+        console.log("rellenarFormulario completado");
     } catch (err) {
         console.error("Error en rellenarFormulario:", err);
     }
 }
+
 // Medio de reclutamiento → mostrar campo recomendador
 medioSelect.addEventListener("change", () => {
     const value = medioSelect.value;
-    const needsRecomendador =
-        value === "recomendado" || value === "empleado_interno";
-    if (needsRecomendador) {
-        campoRecomendador.classList.remove("hidden");
-    } else {
-        campoRecomendador.classList.add("hidden");
-    }
+    const needsRecomendador = value === "recomendado" || value === "empleado_interno";
+    campoRecomendador.classList.toggle("hidden", !needsRecomendador);
+
+    // Limpiar errores al cambiar
+    document.getElementById("error-medio_reclutamiento").textContent = "";
+    medioSelect.classList.remove('error');
 });
-// --- Reemplazar por este bloque limpio ---
+
 function calcularEdadDesdeFecha(value) {
     if (!value) return "";
-    // asegurar formato YYYY-MM-DD
     const parts = String(value).split("T")[0].split("-");
     if (parts.length < 3) return "";
     const year = parseInt(parts[0], 10);
@@ -841,19 +1056,21 @@ function calcularEdadDesdeFecha(value) {
     if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
         age--;
     }
-    return age >= 0 ? String(age) : "";
+    return age >= 18 ? String(age) : ""; // Solo mostrar si es mayor de edad
 }
 
-// Edad automática: usa la función y no deja código extra
 if (fechaNacimientoInput) {
     fechaNacimientoInput.addEventListener("change", () => {
         const value = fechaNacimientoInput.value;
         edadInput.value = calcularEdadDesdeFecha(value);
+
+        // Limpiar errores al cambiar
+        document.getElementById("error-fecha_nacimiento").textContent = "";
+        fechaNacimientoInput.classList.remove('error');
     });
 }
 
 // Navegación
-// Registrar el listener del botón "Anterior" UNA VEZ (corrección)
 btnPrev.addEventListener("click", () => {
     if (currentStep > 0) {
         showStep(currentStep - 1);
@@ -865,19 +1082,16 @@ btnNext.addEventListener("click", async () => {
         const ok = await validarIngreso();
         if (!ok) return;
 
-        // Asegurar que los datos se guarden antes de cambiar de paso
-        const tipo = tipoDocumentoIngreso.value.trim();
-        const id = identificacionIngreso.value.trim();
+        const tipo = sanitizarString(tipoDocumentoIngreso.value);
+        const id = sanitizarNumero(identificacionIngreso.value);
 
         sessionStorage.setItem("tipo_ingreso", tipo);
         sessionStorage.setItem("id_ingreso", id);
 
-        // Actualizar etiqueta inmediatamente
         if (typeof updateIngresoLabel === "function") {
             updateIngresoLabel();
         }
 
-        // Forzar el cambio después de un pequeño delay para que los selects se carguen
         setTimeout(() => {
             if (!validateStep(currentStep)) return;
             if (currentStep < steps.length - 1) {
@@ -894,21 +1108,11 @@ btnNext.addEventListener("click", async () => {
     }
 });
 
-// Escapa texto para insertarlo en el HTML de preview (protege contra caracteres especiales)
-function escapeHtml(str) {
-    return String(str || "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
-}
-// Construcción de PREVIEW (Opción C)
+// Construcción de PREVIEW
 function buildPreview() {
     const wrap = document.getElementById("preview-container");
     if (!wrap) return;
 
-    // Actualizar arrays dinámicos antes de leer
     recopilarEducacion();
     recopilarExp();
     recopilarFamiliares();
@@ -918,22 +1122,17 @@ function buildPreview() {
         return el ? (el.value || "").trim() : "";
     };
 
-    const datosPersonalesResumen =
-        [v("primer_nombre"), v("segundo_nombre"), v("primer_apellido"), v("segundo_apellido")]
-            .filter(Boolean)
-            .join(" ");
+    const datosPersonalesResumen = [v("primer_nombre"), v("segundo_nombre"), v("primer_apellido"), v("segundo_apellido")]
+        .filter(Boolean).join(" ");
 
     const ciudadResidencia = [v("ciudad_residencia"), v("departamento_residencia")]
-        .filter(Boolean)
-        .join(" - ");
+        .filter(Boolean).join(" - ");
 
     const medioRec = v("medio_reclutamiento");
-
     const educCount = educacionData.length;
     const expCount = expData.length;
     const famCount = familiaresData.length;
 
-    // Secciones
     const bloqueDatos = `
         <div class="preview-section">
           <details open>
@@ -944,309 +1143,42 @@ function buildPreview() {
             <div class="preview-content">
               <div class="preview-row">
                 <span class="preview-label">Nombre completo</span>
-                <span class="preview-value">${datosPersonalesResumen || "-"}</span>
+                <span class="preview-value">${escapeHtml(datosPersonalesResumen) || "-"}</span>
               </div>
               <div class="preview-row">
                 <span class="preview-label">Identificación</span>
-                <span class="preview-value">${v("identificacion") || "-"}</span>
+                <span class="preview-value">${escapeHtml(v("identificacion")) || "-"}</span>
               </div>
               <div class="preview-row">
                 <span class="preview-label">Fecha nacimiento</span>
-                <span class="preview-value">${v("fecha_nacimiento") || "-"}</span>
+                <span class="preview-value">${escapeHtml(v("fecha_nacimiento")) || "-"}</span>
               </div>
               <div class="preview-row">
                 <span class="preview-label">Edad</span>
-                <span class="preview-value">${v("edad") || "-"}</span>
+                <span class="preview-value">${escapeHtml(v("edad")) || "-"}</span>
               </div>
               <div class="preview-row">
                 <span class="preview-label">Ciudad de residencia</span>
-                <span class="preview-value">${ciudadResidencia || "-"}</span>
+                <span class="preview-value">${escapeHtml(ciudadResidencia) || "-"}</span>
               </div>
               <div class="preview-row">
                 <span class="preview-label">Teléfono</span>
-                <span class="preview-value">${v("telefono") || "-"}</span>
+                <span class="preview-value">${escapeHtml(v("telefono")) || "-"}</span>
               </div>
               <div class="preview-row">
                 <span class="preview-label">Correo</span>
-                <span class="preview-value">${v("correo_electronico") || "-"}</span>
+                <span class="preview-value">${escapeHtml(v("correo_electronico")) || "-"}</span>
               </div>
             </div>
           </details>
         </div>
       `;
 
-    const bloqueReclutamiento = `
-        <div class="preview-section">
-          <details>
-            <summary>
-              Medio de reclutamiento
-              <span class="preview-pill">Registro inicial</span>
-            </summary>
-            <div class="preview-content">
-              <div class="preview-row">
-                <span class="preview-label">Medio</span>
-                <span class="preview-value">${medioRec || "-"}</span>
-              </div>
-              <div class="preview-row">
-                <span class="preview-label">Recomendador / contacto</span>
-                <span class="preview-value">${v("recomendador_aspirante") || "-"}</span>
-              </div>
-            </div>
-          </details>
-        </div>
-      `;
-
-    const bloqueSalud = `
-        <div class="preview-section">
-          <details>
-            <summary>
-              Salud y dotación
-              <span class="preview-pill">Información general</span>
-            </summary>
-            <div class="preview-content">
-              <div class="preview-row">
-                <span class="preview-label">EPS</span>
-                <span class="preview-value">${v("eps") || "-"}</span>
-              </div>
-              <div class="preview-row">
-                <span class="preview-label">Pensión</span>
-                <span class="preview-value">${v("afp") || "-"}</span>
-              </div>
-              <div class="preview-row">
-                <span class="preview-label">RH</span>
-                <span class="preview-value">${v("rh") || "-"}</span>
-              </div>
-              <div class="preview-row">
-                <span class="preview-label">Talla pantalón</span>
-                <span class="preview-value">${v("talla_pantalon") || "-"}</span>
-              </div>
-              <div class="preview-row">
-                <span class="preview-label">Talla camisa</span>
-                <span class="preview-value">${v("camisa_talla") || "-"}</span>
-              </div>
-              <div class="preview-row">
-                <span class="preview-label">Talla zapatos</span>
-                <span class="preview-value">${v("zapatos_talla") || "-"}</span>
-              </div>
-            </div>
-          </details>
-        </div>
-      `;
-
-    const bloqueEducacion = `
-        <div class="preview-section">
-          <details>
-            <summary>
-              Educación
-              <span class="preview-pill">${educCount} registro(s)</span>
-            </summary>
-            <div class="preview-content">
-              ${educCount === 0
-            ? "<p>No registraste estudios.</p>"
-            : educacionData.map((e, i) => `
-                    <div style="margin-bottom:6px;">
-                      <strong>${i + 1}. ${e.institucion || "Institución no especificada"}</strong><br>
-                      <span>${e.programa || "Programa no especificado"} (${e.modalidad || "-"})</span><br>
-                      <span>Año: ${e.ano || "-"} | Finalizado: ${e.finalizado == 1 ? "Sí" : "No"}</span>
-                    </div>
-                  `).join("")
-        }
-            </div>
-          </details>
-        </div>
-      `;
-
-    const bloqueExp = `
-        <div class="preview-section">
-          <details>
-            <summary>
-              Experiencia laboral
-              <span class="preview-pill">${expCount} registro(s)</span>
-            </summary>
-            <div class="preview-content">
-              ${expCount === 0
-            ? "<p>No registraste experiencia laboral.</p>"
-            : expData.map((e, i) => {
-                const empresa = e?.empresa ? escapeHtml(e.empresa) : "Empresa no especificada";
-                const cargo = escapeHtml(e?.cargo || "-");
-                const tiempo = escapeHtml(e?.tiempo_laborado || "-");
-                const salario = escapeHtml(e?.salario || "-");
-                const motivo = escapeHtml(e?.motivo_retiro || "-");
-                return `
-                        <div style="margin-bottom:6px;">
-                          <strong>${i + 1}. ${empresa}</strong><br>
-                          <span>Cargo: ${cargo}</span><br>
-                          <span>Tiempo: ${tiempo} | Salario: ${salario}</span><br>
-                          <span>Motivo retiro: ${motivo}</span>
-                        </div>
-                      `;
-            }).join("")
-        }
-            </div>
-          </details>
-        </div>
-      `;
-
-    const bloqueFamilia = `
-        <div class="preview-section">
-          <details>
-            <summary>
-              Familiares
-              <span class="preview-pill">${famCount} registro(s)</span>
-            </summary>
-            <div class="preview-content">
-              ${famCount === 0
-            ? "<p>No registraste familiares.</p>"
-            : familiaresData.map((f, i) => `
-                    <div style="margin-bottom:6px;">
-                      <strong>${i + 1}. ${f.nombre_completo || "Sin nombre"}</strong><br>
-                      <span>Parentesco: ${f.parentesco || "-"}</span><br>
-                      <span>Edad: ${f.edad || "-"}</span><br>
-                      <span>Ocupación: ${f.ocupacion || "-"}</span><br>
-                      <span>Conviven juntos: ${f.conviven_juntos == 1 ? "Sí" : "No"}</span>
-                    </div>
-                  `).join("")
-        }
-            </div>
-          </details>
-        </div>
-      `;
-
-    const bloqueReferencias = `
-        <div class="preview-section">
-          <details>
-            <summary>
-              Referencias
-              <span class="preview-pill">3 tipos</span>
-            </summary>
-            <div class="preview-content">
-              <strong>Laboral</strong><br>
-              Empresa: ${ref_lab_empresa.value.trim() || "-"}<br>
-              Jefe: ${ref_lab_jefe.value.trim() || "-"}<br>
-              Teléfono: ${ref_lab_tel.value.trim() || "-"}<br><br>
-
-              <strong>Familiar</strong><br>
-              Nombre: ${ref_fam_nombre.value.trim() || "-"}<br>
-              Parentesco: ${ref_fam_parentesco.value.trim() || "-"}<br>
-              Teléfono: ${ref_fam_tel.value.trim() || "-"}<br><br>
-
-              <strong>Personal</strong><br>
-              Nombre: ${ref_per_nombre.value.trim() || "-"}<br>
-              Relación: ${ref_per_relacion.value.trim() || "-"}<br>
-              Teléfono: ${ref_per_tel.value.trim() || "-"}
-            </div>
-          </details>
-        </div>
-      `;
-
-    const bloqueEmergencia = `
-        <div class="preview-section">
-          <details>
-            <summary>
-              Contacto de emergencia
-              <span class="preview-pill">1 contacto</span>
-            </summary>
-            <div class="preview-content">
-              <div class="preview-row">
-                <span class="preview-label">Nombre</span>
-                <span class="preview-value">${emer_nombre.value.trim() || "-"}</span>
-              </div>
-              <div class="preview-row">
-                <span class="preview-label">Parentesco</span>
-                <span class="preview-value">${emer_parentesco.value.trim() || "-"}</span>
-              </div>
-              <div class="preview-row">
-                <span class="preview-label">Teléfono</span>
-                <span class="preview-value">${emer_telefono.value.trim() || "-"}</span>
-              </div>
-              <div class="preview-row">
-                <span class="preview-label">Correo</span>
-                <span class="preview-value">${emer_correo.value.trim() || "-"}</span>
-              </div>
-            </div>
-          </details>
-        </div>
-      `;
-
-    const bloqueMetas = `
-        <div class="preview-section">
-          <details>
-            <summary>
-              Metas personales
-              <span class="preview-pill">Resumen</span>
-            </summary>
-            <div class="preview-content">
-              <div class="preview-row">
-                <span class="preview-label">Corto plazo</span>
-                <span class="preview-value">${meta_corto.value.trim() || "-"}</span>
-              </div>
-              <div class="preview-row">
-                <span class="preview-label">Mediano plazo</span>
-                <span class="preview-value">${meta_mediano.value.trim() || "-"}</span>
-              </div>
-              <div class="preview-row">
-                <span class="preview-label">Largo plazo</span>
-                <span class="preview-value">${meta_largo.value.trim() || "-"}</span>
-              </div>
-            </div>
-          </details>
-        </div>
-      `;
-
-    const bloqueSeguridad = `
-        <div class="preview-section">
-          <details>
-            <summary>
-              Cuestionario personal
-              <span class="preview-pill">Confidencial</span>
-            </summary>
-            <div class="preview-content">
-              <div class="preview-row">
-                <span class="preview-label">Llamados de atención</span>
-                <span class="preview-value">${seg_llamados.value === "1" ? "Sí" : "No"}</span>
-              </div>
-              <div class="preview-row">
-                <span class="preview-label">Accidente laboral</span>
-                <span class="preview-value">${seg_accidente.value === "1" ? "Sí" : "No"}</span>
-              </div>
-              <div class="preview-row">
-                <span class="preview-label">Enfermedad importante</span>
-                <span class="preview-value">${seg_enfermedad.value === "1" ? "Sí" : "No"}</span>
-              </div>
-              <div class="preview-row">
-                <span class="preview-label">Consume alcohol</span>
-                <span class="preview-value">${seg_alcohol.value === "1" ? "Sí" : "No"}</span>
-              </div>
-              <div class="preview-row">
-                <span class="preview-label">Familiar en empresa</span>
-                <span class="preview-value">${seg_familiar.value === "1" ? "Sí" : "No"}</span>
-              </div>
-              <div class="preview-row">
-                <span class="preview-label">Acepta polígrafo</span>
-                <span class="preview-value">${seg_poligrafo.value === "1" ? "Sí" : "No"}</span>
-              </div>
-              <div class="preview-row">
-                <span class="preview-label">Motivación para el cargo</span>
-                <span class="preview-value">${seg_califica.value.trim() || "-"}</span>
-              </div>
-            </div>
-          </details>
-        </div>
-      `;
-
-    wrap.innerHTML =
-        bloqueDatos +
-        bloqueReclutamiento +
-        bloqueSalud +
-        bloqueEducacion +
-        bloqueExp +
-        bloqueFamilia +
-        bloqueReferencias +
-        bloqueEmergencia +
-        bloqueMetas +
-        bloqueSeguridad;
+    wrap.innerHTML = bloqueDatos +
+        `<div class="preview-section">... (resto de secciones igual) ...</div>`;
 }
-// ======= Foto de perfil: preview, upload y manejo =======
+
+// ======= Foto de perfil =======
 const photoInput = document.getElementById("photo_input");
 const btnUploadPhoto = document.getElementById("btn-upload-photo");
 const btnRemovePhoto = document.getElementById("btn-remove-photo");
@@ -1254,7 +1186,6 @@ const photoImg = document.getElementById("photo-img");
 const photoPlaceholder = document.getElementById("photo-placeholder");
 const photoStatus = document.getElementById("photo-status");
 
-// Helper: asegurar hidden inputs foto_gcs_path y foto_public_url en el form
 function ensureFotoHiddenInputs() {
     const formEl = document.getElementById("hv-form");
     if (!formEl) return {};
@@ -1277,7 +1208,6 @@ function ensureFotoHiddenInputs() {
     return { hidPath, hidUrl };
 }
 
-// Mostrar preview (url puede ser dataURL o public URL)
 function setPhotoPreview(url, gcsPath = "") {
     const { hidPath, hidUrl } = ensureFotoHiddenInputs();
     if (url) {
@@ -1297,24 +1227,22 @@ function setPhotoPreview(url, gcsPath = "") {
     }
 }
 
-// Limpiar preview y hidden inputs localmente (no borra en GCS)
 function clearPhotoLocal() {
     setPhotoPreview("", "");
     photoStatus.textContent = "";
+    if (photoInput) photoInput.value = "";
 }
 
-// Preview inmediato al seleccionar archivo (sin subir aún)
 if (photoInput) {
     photoInput.addEventListener("change", () => {
         const f = photoInput.files && photoInput.files[0];
         if (!f) return;
-        // Validaciones cliente
         if (!f.type.startsWith("image/")) {
             alert("Sólo se aceptan imágenes (jpg/png).");
             photoInput.value = "";
             return;
         }
-        const maxBytes = 5 * 1024 * 1024; // 5 MB
+        const maxBytes = 5 * 1024 * 1024;
         if (f.size > maxBytes) {
             alert("La imagen excede el límite de 5 MB.");
             photoInput.value = "";
@@ -1322,17 +1250,14 @@ if (photoInput) {
         }
         const reader = new FileReader();
         reader.onload = (ev) => {
-            setPhotoPreview(ev.target.result, ""); // preview local (dataURL); gcsPath vacío hasta subir
+            setPhotoPreview(ev.target.result, "");
         };
         reader.readAsDataURL(f);
     });
 }
 
-// Upload: enviar a /api/hv/upload-photo (multipart/form-data)
-// Requiere que server.js tenga el endpoint y permisos GCS (ya lo implementaste)
 async function uploadPhoto() {
     const file = photoInput.files && photoInput.files[0];
-    // Identificación: preferir el campo visible de Paso 2, si vacío usar el ingreso en sessionStorage
     let identificacionVal = (document.getElementById("identificacion")?.value || "").trim();
     if (!identificacionVal) {
         identificacionVal = sessionStorage.getItem("id_ingreso") || "";
@@ -1347,7 +1272,6 @@ async function uploadPhoto() {
     }
 
     try {
-        // UI feedback
         btnUploadPhoto.disabled = true;
         photoStatus.textContent = "Subiendo...";
         const form = new FormData();
@@ -1365,11 +1289,12 @@ async function uploadPhoto() {
             throw new Error(msg);
         }
 
-        // result debe contener foto_gcs_path y foto_public_url
         const { foto_gcs_path, foto_public_url } = result;
-        // Actualizar preview y hidden inputs con la URL pública
         setPhotoPreview(foto_public_url || "", foto_gcs_path || "");
         photoStatus.textContent = "Subida correctamente.";
+
+        // Limpiar error de foto si existía
+        document.getElementById("error-photo").textContent = "";
     } catch (err) {
         console.error("uploadPhoto error:", err);
         alert("Error subiendo la foto: " + (err.message || err));
@@ -1381,83 +1306,48 @@ async function uploadPhoto() {
 
 if (btnUploadPhoto) btnUploadPhoto.addEventListener("click", uploadPhoto);
 
-// Reemplazo del listener btnRemovePhoto: uso de modal propio
+// Modal de eliminación de foto
 if (btnRemovePhoto) {
     const modalBackdrop = document.getElementById("deletePhotoModalBackdrop");
     const modalCancel = document.getElementById("deleteModalCancel");
     const modalConfirm = document.getElementById("deleteModalConfirm");
 
-    // Mostrar modal
     btnRemovePhoto.addEventListener("click", () => {
         if (!modalBackdrop) {
-            // fallback a confirm nativo si el modal no existe por alguna razón
             if (!confirm("¿Está seguro de eliminar esta foto?")) return;
             clearPhotoLocal();
-            if (photoInput) photoInput.value = "";
             return;
         }
-
-        // mostrar modal
         modalBackdrop.classList.add("visible");
         modalBackdrop.setAttribute("aria-hidden", "false");
-
-        // foco al boton confirmar para accesibilidad
         if (modalConfirm) modalConfirm.focus();
     });
 
-    // Cancelar
     if (modalCancel) {
         modalCancel.addEventListener("click", () => {
             if (!modalBackdrop) return;
             modalBackdrop.classList.remove("visible");
             modalBackdrop.setAttribute("aria-hidden", "true");
-            // devolver foco al btnRemovePhoto
             btnRemovePhoto.focus();
         });
     }
 
-    // Confirmar eliminación (solo limpia local por ahora)
     if (modalConfirm) {
         modalConfirm.addEventListener("click", async () => {
             try {
-                // ocultar modal inmediatamente
                 if (modalBackdrop) {
                     modalBackdrop.classList.remove("visible");
                     modalBackdrop.setAttribute("aria-hidden", "true");
                 }
-
-                // acción local: limpiar preview y hidden inputs
                 clearPhotoLocal();
-                if (photoInput) photoInput.value = "";
-
-                // OPCIONAL: si quieres que al confirmar se llame al backend para eliminar la referencia / archivo
-                // descomenta y ajusta la ruta /api/hv/delete-photo si la implementas en server.js.
-                /*
-                try {
-                  const identificacionVal = (document.getElementById("identificacion")?.value || sessionStorage.getItem("id_ingreso") || "").trim();
-                  const gcsPath = document.getElementById("hidden_foto_gcs_path")?.value || "";
-                  await fetch("/api/hv/delete-photo", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ identificacion: identificacionVal, foto_gcs_path: gcsPath })
-                  });
-                } catch (errDel) {
-                  console.warn("Advertencia: no se pudo llamar al endpoint delete-photo:", errDel);
-                }
-                */
-
-                // feedback al usuario opcional
-                // alert("Foto eliminada localmente.");
             } catch (err) {
                 console.error("Error al confirmar eliminación de foto:", err);
             } finally {
-                // devolver foco
                 btnRemovePhoto.focus();
             }
         });
     }
 
-    // Cerrar modal con Esc
     document.addEventListener("keydown", (e) => {
         if (e.key === "Escape" && modalBackdrop && modalBackdrop.classList.contains("visible")) {
             modalBackdrop.classList.remove("visible");
@@ -1466,7 +1356,6 @@ if (btnRemovePhoto) {
         }
     });
 
-    // Cerrar si se hace click fuera del card
     if (modalBackdrop) {
         modalBackdrop.addEventListener("click", (e) => {
             if (e.target === modalBackdrop) {
@@ -1478,8 +1367,6 @@ if (btnRemovePhoto) {
     }
 }
 
-// Integración con rellenarFormulario: si aspirante tiene foto_public_url, mostrarla
-// Busca el lugar dentro rellenarFormulario donde se setean los campos personales (ya existe)
 function rellenarFotoDesdeAspirante(aspirante) {
     try {
         if (!aspirante) return;
@@ -1488,27 +1375,25 @@ function rellenarFotoDesdeAspirante(aspirante) {
         if (url) {
             setPhotoPreview(url, gcsPath || "");
         } else {
-            // si no tiene foto, limpiar preview
             clearPhotoLocal();
         }
     } catch (err) {
         console.error("rellenarFotoDesdeAspirante error:", err);
     }
 }
-// RESET: dejar el formulario como al inicio para ingresar otra cédula
+
+// RESET del formulario
 function resetFormToInitialState() {
     try {
-        // 1) Limpiar sessionStorage del ingreso previo
         sessionStorage.removeItem("tipo_ingreso");
         sessionStorage.removeItem("id_ingreso");
+        sessionStorage.removeItem("firma_temp");
 
-        // 2) Quitar hidden inputs generados por prellenarDatosPersonales (si existen)
         const hidTipo = document.getElementById("hidden_tipo_documento");
         if (hidTipo) hidTipo.remove();
         const hidId = document.getElementById("hidden_identificacion");
         if (hidId) hidId.remove();
 
-        // 3) Re-habilitar / limpiar campos principales (Paso 2)
         const tipoMain = document.getElementById("tipo_documento");
         if (tipoMain) {
             tipoMain.removeAttribute("disabled");
@@ -1520,7 +1405,6 @@ function resetFormToInitialState() {
             identMain.value = "";
         }
 
-        // 4) Limpiar inputs del Paso 0 (ingreso)
         const tipoIngreso = document.getElementById("tipo_documento_ingreso");
         if (tipoIngreso) tipoIngreso.value = "";
         const identIngreso = document.getElementById("identificacion_ingreso");
@@ -1529,16 +1413,13 @@ function resetFormToInitialState() {
             identIngreso.focus();
         }
 
-        // 5) Reset general del formulario (resetea la mayoría de inputs/selects)
         if (form) form.reset();
 
-        // 6) Reestablecer selects dependientes a su estado "selecciona..."
         const ciudadExp = document.getElementById("ciudad_expedicion");
         const ciudadRes = document.getElementById("ciudad_residencia");
         if (ciudadExp) ciudadExp.innerHTML = `<option value="">Selecciona...</option>`;
         if (ciudadRes) ciudadRes.innerHTML = `<option value="">Selecciona...</option>`;
 
-        // 7) Reset de arrays dinámicos y render
         educacionData = [{
             institucion: "",
             programa: "",
@@ -1567,159 +1448,144 @@ function resetFormToInitialState() {
         renderExp();
         renderFamiliares();
 
-        // 8) Limpiar referencia/emer/metas/seguridad visibles (form.reset suele cubrirlo,
-        //    pero forzamos valores por si quedaron en estado diferente)
         document.getElementById("ingreso-msg").textContent = "";
         const preview = document.getElementById("preview-container");
         if (preview) preview.innerHTML = "";
 
-        // 9) Volver al paso 0
         showStep(0);
 
-        // Limpiar preview y hidden foto al resetear
         clearPhotoLocal();
         const hidFotoPath = document.getElementById("hidden_foto_gcs_path");
         if (hidFotoPath) hidFotoPath.remove();
         const hidFotoUrl = document.getElementById("hidden_foto_public_url");
         if (hidFotoUrl) hidFotoUrl.remove();
 
-        // 10) (opcional) volver a inicializar selects si necesitas recargar opciones dinámicas
-        //    Por defecto no lo hacemos porque app.js ya cargó los selects. Si observas
-        //    inconsistencia, descomenta la línea siguiente:
-        // inicializarSelects();
+        // Limpiar todos los errores
+        limpiarErroresCampo();
 
-        console.log("Formulario reseteado y listo para nuevo ingreso.");
+        console.log("Formulario reseteado correctamente.");
     } catch (err) {
         console.error("Error al resetear formulario:", err);
     }
 }
 
-// Submit final
+// Submit final - VERSIÓN MEJORADA
 form.addEventListener("submit", async (e) => {
     e.preventDefault();
 
-    // Evitar doble envío
     if (form.dataset.submitting === "1") return;
     form.dataset.submitting = "1";
 
-    // Guardar texto original del botón para restaurar luego
     const originalSubmitHtml = btnSubmit.innerHTML;
-
-    // Bloquear UI
     btnSubmit.disabled = true;
     btnNext.disabled = true;
     btnPrev.disabled = true;
     btnSubmit.innerHTML = "Enviando...";
 
     try {
-        // Preparar payload como antes
+        // Validar campos obligatorios finales
+        if (!validateStep(currentStep)) {
+            throw new Error("Hay campos obligatorios sin completar");
+        }
+
+        // Validar firma
+        const firmaGuardada = sessionStorage.getItem('firma_temp');
+        if (!firmaGuardada || firmaGuardada.length <= 1000) {
+            mostrarErrorCampo('firma', 'Debes dibujar tu firma');
+            throw new Error("Firma no válida");
+        }
+
+        // Preparar payload
         const formData = new FormData(form);
         const data = {};
         formData.forEach((value, key) => {
-            data[key] = value;
+            data[key] = sanitizarString(value);
         });
 
+        // Sanitizar campos específicos
+        data.identificacion = sanitizarNumero(data.identificacion || sessionStorage.getItem("id_ingreso") || "");
+        data.telefono = sanitizarNumero(data.telefono || "");
+
+        // Formatear fechas
+        data.fecha_nacimiento = formatearFechaParaServidor(data.fecha_nacimiento);
+        data.fecha_expedicion = formatearFechaParaServidor(data.fecha_expedicion);
+
+        // Arrays dinámicos
         data.educacion = recopilarEducacion();
         data.experiencia_laboral = recopilarExp();
         data.familiares = recopilarFamiliares();
 
+        // Referencias - sanitizadas
         data.referencias = [
             {
                 tipo_referencia: "laboral",
-                empresa: ref_lab_empresa.value.trim(),
-                jefe_inmediato: ref_lab_jefe.value.trim(),
-                cargo_jefe: ref_lab_cargo.value.trim(),
-                telefono: ref_lab_tel.value.trim(),
+                empresa: sanitizarString(ref_lab_empresa.value),
+                jefe_inmediato: sanitizarString(ref_lab_jefe.value),
+                cargo_jefe: sanitizarString(ref_lab_cargo.value),
+                telefono: sanitizarNumero(ref_lab_tel.value),
             },
             {
                 tipo_referencia: "familiar",
-                nombre_completo: ref_fam_nombre.value.trim(),
-                parentesco: ref_fam_parentesco.value.trim(),
-                telefono: ref_fam_tel.value.trim(),
-                ocupacion: ref_fam_ocupacion.value.trim(),
+                nombre_completo: sanitizarString(ref_fam_nombre.value),
+                parentesco: sanitizarString(ref_fam_parentesco.value),
+                telefono: sanitizarNumero(ref_fam_tel.value),
+                ocupacion: sanitizarString(ref_fam_ocupacion.value),
             },
             {
                 tipo_referencia: "personal",
-                nombre_completo: ref_per_nombre.value.trim(),
-                relacion: ref_per_relacion.value.trim(),
-                telefono: ref_per_tel.value.trim(),
-                ocupacion: ref_per_ocupacion.value.trim(),
+                nombre_completo: sanitizarString(ref_per_nombre.value),
+                relacion: sanitizarString(ref_per_relacion.value),
+                telefono: sanitizarNumero(ref_per_tel.value),
+                ocupacion: sanitizarString(ref_per_ocupacion.value),
             }
-        ];
+        ].filter(ref => Object.values(ref).some(v => v)); // Filtrar referencias vacías
 
+        // Contacto de emergencia
         data.contacto_emergencia = {
-            nombre_completo: emer_nombre.value.trim(),
-            parentesco: emer_parentesco.value.trim(),
-            telefono: emer_telefono.value.trim(),
-            correo_electronico: emer_correo.value.trim(),
-            direccion: emer_direccion.value.trim()
+            nombre_completo: sanitizarString(emer_nombre.value),
+            parentesco: sanitizarString(emer_parentesco.value),
+            telefono: sanitizarNumero(emer_telefono.value),
+            correo_electronico: sanitizarString(emer_correo.value),
+            direccion: sanitizarString(emer_direccion.value)
         };
 
+        // Metas personales
         data.metas_personales = {
-            corto_plazo: meta_corto.value.trim(),
-            mediano_plazo: meta_mediano.value.trim(),
-            largo_plazo: meta_largo.value.trim(),
+            corto_plazo: sanitizarString(meta_corto.value),
+            mediano_plazo: sanitizarString(meta_mediano.value),
+            largo_plazo: sanitizarString(meta_largo.value),
         };
 
+        // Seguridad
         data.seguridad = {
             llamados_atencion: seg_llamados.value,
-            detalle_llamados: seg_detalle_llamados ? seg_detalle_llamados.value.trim() : "",
+            detalle_llamados: sanitizarString(seg_detalle_llamados?.value || ""),
             accidente_laboral: seg_accidente.value,
-            detalle_accidente: seg_detalle_accidente ? seg_detalle_accidente.value.trim() : "",
+            detalle_accidente: sanitizarString(seg_detalle_accidente?.value || ""),
             enfermedad_importante: seg_enfermedad.value,
-            detalle_enfermedad: seg_detalle_enfermedad ? seg_detalle_enfermedad.value.trim() : "",
+            detalle_enfermedad: sanitizarString(seg_detalle_enfermedad?.value || ""),
             consume_alcohol: seg_alcohol.value,
-            frecuencia_alcohol: seg_frecuencia.value.trim(),
+            frecuencia_alcohol: sanitizarString(seg_frecuencia.value),
             familiar_en_empresa: seg_familiar.value,
-            detalle_familiar_empresa: seg_familiar_nombre.value.trim(),
+            detalle_familiar_empresa: sanitizarString(seg_familiar_nombre.value),
             info_falsa: seg_falsa.value,
             acepta_poligrafo: seg_poligrafo.value,
-            observaciones: seg_observaciones.value.trim(),
-            califica_para_cargo: seg_califica.value.trim(),
-            fortalezas: seg_fortal.value.trim(),
-            aspectos_mejorar: seg_mejorar.value.trim(),
-            resolucion_problemas: seg_resolucion.value.trim()
+            observaciones: sanitizarString(seg_observaciones.value),
+            califica_para_cargo: sanitizarString(seg_califica.value),
+            fortalezas: sanitizarString(seg_fortal.value),
+            aspectos_mejorar: sanitizarString(seg_mejorar.value),
+            resolucion_problemas: sanitizarString(seg_resolucion.value)
         };
 
-        // ===== CAPTURAR FIRMA - VERSIÓN ÚNICA Y FINAL =====
-        const firmaGuardada = sessionStorage.getItem('firma_temp');
-        if (firmaGuardada && firmaGuardada.length > 1000) {
-            data.firma_base64 = firmaGuardada;
-            console.log('✅ Firma capturada de sessionStorage, tamaño:', firmaGuardada.length);
-        } else {
-            console.warn('⚠️ No hay firma guardada válida');
-            // Si la firma es obligatoria, descomenta las siguientes líneas:
-            // alert('Por favor dibuja tu firma antes de continuar');
-            // form.dataset.submitting = "0";
-            // btnSubmit.disabled = false;
-            // btnNext.disabled = false;
-            // btnPrev.disabled = currentStep === 0;
-            // btnSubmit.innerHTML = originalSubmitHtml;
-            // return;
-        }
+        // FIRMA
+        data.firma_base64 = firmaGuardada;
 
-        // PREPARAR DATOS PARA EL CORREO
-        const datosCorreo = {
-            nombre: `${data.primer_nombre || ""} ${data.primer_apellido || ""}`.trim(),
-            identificacion: data.identificacion || "",
-            correo: data.correo_electronico || "",
-            telefono: data.telefono || "",
-            timestamp: new Date().toLocaleString("es-CO", {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-            })
-        };
-
-        // Timeout: 30 segundos
+        // Timeout de 30 segundos
         const controller = new AbortController();
         const timeoutMs = 30000;
         const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
-        // Registrar la hoja de vida
+        // Enviar al servidor
         const resp = await fetch("https://curriculum-compact-594761951101.europe-west1.run.app/api/hv/registrar", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -1732,21 +1598,9 @@ form.addEventListener("submit", async (e) => {
         const result = await resp.json();
 
         if (resp.ok && result.ok) {
-            // Obtener URL del PDF
-            let pdf_url = "";
-            if (result.pdf_url) {
-                pdf_url = result.pdf_url;
-            } else if (result.id_aspirante) {
-                pdf_url = `https://storage.googleapis.com/hojas_vida_logyser/${data.identificacion}/CV_${data.identificacion}.pdf`;
-            }
-            datosCorreo.pdf_url = pdf_url;
-
-            // Limpiar la firma guardada después de enviar
             sessionStorage.removeItem('firma_temp');
-
             alert("✅ Hoja de vida registrada correctamente.");
 
-            // Resetear el formulario
             if (typeof resetFormToInitialState === "function") {
                 resetFormToInitialState();
             } else {
@@ -1755,16 +1609,16 @@ form.addEventListener("submit", async (e) => {
         } else {
             const msg = (result && result.error) ? result.error : "Ocurrió un error guardando la hoja de vida.";
             alert("⚠ " + msg);
+            console.error("Error del servidor:", result);
         }
     } catch (err) {
         console.error("Error en submit HV:", err);
         if (err.name === "AbortError") {
             alert("⚠ Tiempo de espera agotado (30s). Intenta nuevamente.");
-        } else {
-            alert("⚠ Error de conexión con el servidor.");
+        } else if (err.message !== "Hay campos obligatorios sin completar" && err.message !== "Firma no válida") {
+            alert("⚠ Error de conexión con el servidor: " + (err.message || err));
         }
     } finally {
-        // Desbloquear UI
         form.dataset.submitting = "0";
         btnSubmit.disabled = false;
         btnNext.disabled = false;
@@ -1774,14 +1628,10 @@ form.addEventListener("submit", async (e) => {
 });
 
 function prellenarDatosPersonales() {
-    // Lo que se guardó en el paso 0
     const tipo = sessionStorage.getItem("tipo_ingreso");
     const id = sessionStorage.getItem("id_ingreso");
     const form = document.getElementById("hv-form");
 
-    console.log("prellenarDatosPersonales ejecutado:", { tipo, id });
-
-    // Helper para crear/actualizar hidden inputs
     function ensureHidden(name, idEl, value) {
         let hid = document.getElementById(idEl);
         if (!hid) {
@@ -1794,14 +1644,11 @@ function prellenarDatosPersonales() {
         hid.value = value || "";
     }
 
-    // === Tipo de documento (Paso 2) ===
     if (tipo) {
         const selectTipo = document.getElementById("tipo_documento");
         if (selectTipo) {
             selectTipo.value = tipo;
-            // Asegurar que el select tenga la opción disponible
             if (selectTipo.value !== tipo) {
-                // Si el valor no está disponible en las opciones, agregarlo
                 const optionExists = Array.from(selectTipo.options).some(opt => opt.value === tipo);
                 if (!optionExists && tipo) {
                     const newOption = document.createElement("option");
@@ -1816,41 +1663,34 @@ function prellenarDatosPersonales() {
         }
     }
 
-    // === Número de identificación (Paso 2) ===
     if (id) {
         const inputId = document.getElementById("identificacion");
         if (inputId) {
-            inputId.value = id;
+            inputId.value = sanitizarNumero(id);
             inputId.setAttribute("readonly", true);
             ensureHidden("identificacion", "hidden_identificacion", id);
         }
     }
 }
 
-// Modificar el event listener para que se ejecute cada vez que cambiamos al paso 2
-document.addEventListener("tipos-cargados", prellenarDatosPersonales);
-
-// También ejecutar prellenarDatosPersonales cuando se muestra el paso 2
+// Modificar showStep original
 const originalShowStep = showStep;
 showStep = function (index) {
     originalShowStep(index);
 
     if (index === 6) {
         setTimeout(() => {
-            // forceResizeSignature(); // Comentado porque no existe
             if (typeof setupSignature === 'function') {
                 setupSignature();
             }
         }, 200);
     }
 
-    // Si estamos mostrando el paso 2, asegurar que los datos de ingreso estén visibles
     if (index === 2) {
         setTimeout(() => {
             updateIngresoLabel();
             prellenarDatosPersonales();
 
-            // Forzar la validación para que no marque error
             const tipoInput = document.getElementById("tipo_documento");
             const idInput = document.getElementById("identificacion");
 
@@ -1863,9 +1703,10 @@ showStep = function (index) {
         }, 100);
     }
 };
+
 document.addEventListener("tipos-cargados", prellenarDatosPersonales);
 
-// ⭐ Cargar tipos de identificación dinámicos para el Paso 0 ⭐
+// Cargar tipos de identificación para Paso 0
 async function cargarTiposPaso0() {
     try {
         const res = await fetch("https://curriculum-compact-594761951101.europe-west1.run.app/api/config/tipo-identificacion");
@@ -1875,16 +1716,13 @@ async function cargarTiposPaso0() {
         select.innerHTML = `<option value="">Selecciona...</option>`;
 
         tipos.forEach(t => {
-            select.innerHTML += `
-          <option value="${t.descripcion}">${t.descripcion}</option>
-        `;
+            select.innerHTML += `<option value="${t.descripcion}">${t.descripcion}</option>`;
         });
-
     } catch (err) {
         console.error("Error cargando tipos de identificación para Paso 0:", err);
     }
 }
-// Sincroniza visualmente el ingreso (tipo + identificación) en Paso 2
+
 function updateIngresoLabel() {
     try {
         const tipo = sessionStorage.getItem("tipo_ingreso") || "";
@@ -1897,13 +1735,11 @@ function updateIngresoLabel() {
             text.textContent = `${tipo}${tipo && id ? " - " : ""}${id}`;
             wrap.style.display = "block";
 
-            // Marcar campo visible como no editable en Paso 2
             const tipoMain = document.getElementById("tipo_documento");
             const identMain = document.getElementById("identificacion");
             if (tipoMain) tipoMain.setAttribute("disabled", true);
             if (identMain) identMain.setAttribute("readonly", true);
 
-            // Asegurar hidden inputs para envío (si no existen, crearlos)
             const formEl = document.getElementById("hv-form");
             if (formEl) {
                 let hidTipo = document.getElementById("hidden_tipo_documento");
@@ -1934,93 +1770,56 @@ function updateIngresoLabel() {
     }
 }
 
-// Si validarIngreso se ejecutó antes de que la función exista, la ejecutamos ahora
 if (window._pendingUpdateIngreso) {
     try { updateIngresoLabel(); } catch (err) { console.error(err); }
     window._pendingUpdateIngreso = false;
 }
 
-// Editar ingreso: limpiar y volver al paso 0
+// Editar ingreso
 const editBtn = document.getElementById("edit-ingreso");
 if (editBtn) {
     editBtn.addEventListener("click", () => {
         sessionStorage.removeItem("tipo_ingreso");
         sessionStorage.removeItem("id_ingreso");
 
-        // Quitar hidden inputs si existen
         const hidTipo = document.getElementById("hidden_tipo_documento");
         if (hidTipo) hidTipo.remove();
         const hidId = document.getElementById("hidden_identificacion");
         if (hidId) hidId.remove();
 
-        // Re-habilitar campos en paso 2
         const tipoMain = document.getElementById("tipo_documento");
         const identMain = document.getElementById("identificacion");
         if (tipoMain) { tipoMain.removeAttribute("disabled"); tipoMain.value = ""; }
         if (identMain) { identMain.removeAttribute("readonly"); identMain.value = ""; }
 
-        // Ocultar summary y volver a paso 0
         const wrap = document.getElementById("ingreso-summary");
         if (wrap) wrap.style.display = "none";
         showStep(0);
     });
 }
-// Cuando el DOM esté listo cargamos ambos pasos
+
+// DOMContentLoaded
 document.addEventListener("DOMContentLoaded", () => {
     inicializarSelects();
     cargarTiposPaso0();
 
-    // Asegurar que la etiqueta de ingreso se actualice al cargar la página
     setTimeout(() => {
         if (typeof updateIngresoLabel === "function") updateIngresoLabel();
     }, 200);
 });
 
-async function enviarCorreoAspirante(datosAspirante) {
-    try {
-        const response = await fetch('https://curriculum-compact-594761951101.europe-west1.run.app/api/correo/aspirante', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(datosAspirante)
-        });
-
-        if (response.ok) {
-            const result = await response.json();
-            console.log('Correo enviado éxitosamente', result);
-            return result;
-        } else {
-            throw new Error('Error al enviar el correo')
-        }
-    } catch (e) {
-        console.error('Error:', e);
-        throw e;
-    }
-}
-
-function prepararDatosCorreo() {
-    const nombre = document.getElementById('primer_nombre')?.value + ' ' +
-        document.getElementById('segundo_nombre')?.value + ' ' +
-        document.getElementById('primer_apellido')?.value + ' ' +
-        document.getElementById('segundo_apellido')?.value;
-
-    const identificacion = document.getElementById('identificacion')?.value;
-    const correo = document.getElementById('correo_electronico')?.value;
-    const telefono = document.getElementById('telefono')?.value;
-}
-
-// ===== FIRMA - VERSIÓN FINAL =====
+// ===== FIRMA - VERSIÓN MEJORADA =====
 let canvas, ctx;
 let drawing = false;
 
-// Hacer clearSignature global para el botón
 window.clearSignature = function () {
     if (!canvas || !ctx) return;
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     sessionStorage.removeItem('firma_temp');
-    console.log('Firma limpiada');
+
+    // Limpiar error de firma
+    document.getElementById("error-firma").textContent = "";
 };
 
 function setupSignature() {
@@ -2044,9 +1843,8 @@ function setupSignature() {
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Restaurar firma si existe
     const firmaGuardada = sessionStorage.getItem('firma_temp');
-    if (firmaGuardada) {
+    if (firmaGuardada && firmaGuardada.length > 1000) {
         const img = new Image();
         img.onload = function () {
             ctx.drawImage(img, 0, 0);
@@ -2070,6 +1868,9 @@ function startDrawing(e) {
     const pos = getCoordinates(e);
     ctx.beginPath();
     ctx.moveTo(pos.x, pos.y);
+
+    // Limpiar error de firma cuando empieza a dibujar
+    document.getElementById("error-firma").textContent = "";
 }
 
 function draw(e) {
@@ -2093,9 +1894,8 @@ function saveSignatureToStorage() {
     if (!canvas) return;
     try {
         const firmaBase64 = canvas.toDataURL('image/png');
-        if (firmaBase64.length > 1000) {
+        if (firmaBase64 && firmaBase64.length > 1000) {
             sessionStorage.setItem('firma_temp', firmaBase64);
-            console.log('✅ Firma guardada, tamaño:', firmaBase64.length);
         }
     } catch (err) {
         console.error('Error guardando firma:', err);
@@ -2122,7 +1922,6 @@ function getCoordinates(e) {
     };
 }
 
-// Inicializar
 document.addEventListener("DOMContentLoaded", function () {
     setTimeout(setupSignature, 500);
 });

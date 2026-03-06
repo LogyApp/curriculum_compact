@@ -7,6 +7,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
   <link rel="stylesheet" href="./index.css">
+
 </head>
 
 <body>
@@ -29,42 +30,34 @@
           <div class="step-number">1</div>
           <div class="step-label">Ingreso</div>
         </div>
-
         <div class="step" data-step="1">
           <div class="step-number">2</div>
           <div class="step-label">Medio de reclutamiento</div>
         </div>
-
         <div class="step" data-step="2">
           <div class="step-number">3</div>
           <div class="step-label">Datos personales</div>
         </div>
-
         <div class="step" data-step="3">
           <div class="step-number">4</div>
           <div class="step-label">Educación</div>
         </div>
-
         <div class="step" data-step="4">
           <div class="step-number">5</div>
           <div class="step-label">Experiencia</div>
         </div>
-
         <div class="step" data-step="5">
           <div class="step-number">6</div>
           <div class="step-label">Familia / Referencias</div>
         </div>
-
         <div class="step" data-step="6">
           <div class="step-number">7</div>
           <div class="step-label">Emergencia / Metas</div>
         </div>
-
         <div class="step" data-step="7">
           <div class="step-number">8</div>
           <div class="step-label">Cuestionario</div>
         </div>
-
         <div class="step" data-step="8">
           <div class="step-number">9</div>
           <div class="step-label">Revisión</div>
@@ -89,6 +82,7 @@
               <select id="tipo_documento_ingreso" data-required="true">
                 <option value="">Selecciona...</option>
               </select>
+              <div class="field-error" id="error-tipo_documento_ingreso"></div>
             </div>
 
             <div class="field">
@@ -96,6 +90,7 @@
                 Número de identificación <span class="required">*</span>
               </label>
               <input type="text" id="identificacion_ingreso" data-required="true" />
+              <div class="field-error" id="error-identificacion_ingreso"></div>
             </div>
           </div>
 
@@ -124,6 +119,7 @@
               <div class="help-text">
                 Esta información nos ayuda a mejorar nuestros canales de reclutamiento.
               </div>
+              <div class="field-error" id="error-medio_reclutamiento"></div>
             </div>
 
             <div class="field hidden" id="campo-recomendador">
@@ -132,6 +128,7 @@
               </label>
               <input type="text" id="recomendador_aspirante" name="recomendador_aspirante"
                 placeholder="Nombre de la persona o entidad" />
+              <div class="field-error" id="error-recomendador_aspirante"></div>
             </div>
           </div>
           <div id="error-step-1" class="error-message"></div>
@@ -148,7 +145,7 @@
               <select id="tipo_documento" name="tipo_documento" data-required="true">
                 <option value="">Selecciona...</option>
               </select>
-
+              <div class="field-error" id="error-tipo_documento"></div>
             </div>
 
             <div class="field">
@@ -156,12 +153,15 @@
                 Número de identificación <span class="required">*</span>
               </label>
               <input type="text" id="identificacion" name="identificacion" data-required="true" />
+              <div class="field-error" id="error-identificacion"></div>
             </div>
+
             <div id="ingreso-summary" class="field-help" style="margin-top:8px; display:none;">
               Ingreso: <strong id="ingreso-summary-text"></strong>
               <button type="button" class="btn btn-secondary" id="edit-ingreso" style="margin-left:8px;">Editar</button>
             </div>
-            <!-- Inserta este bloque en Paso 2 (Datos personales) — recomiendo colocarlo justo después de #ingreso-summary -->
+
+            <!-- Foto de perfil -->
             <div class="field" id="photo-field" style="margin-top:10px;">
               <label>Foto de perfil <span class="required">*</span></label>
               <div style="display:flex; align-items:center; gap:12px; margin-top:6px;">
@@ -178,17 +178,21 @@
                 <button type="button" id="btn-remove-photo" class="btn btn-secondary hidden">Eliminar</button>
                 <span id="photo-status" style="align-self:center; color:var(--muted); font-size:0.9rem;"></span>
               </div>
+              <div class="field-error" id="error-photo"></div>
             </div>
+
             <div class="field">
               <label for="primer_nombre">
                 Primer nombre <span class="required">*</span>
               </label>
               <input type="text" id="primer_nombre" name="primer_nombre" data-required="true" />
+              <div class="field-error" id="error-primer_nombre"></div>
             </div>
 
             <div class="field">
               <label for="segundo_nombre">Segundo nombre</label>
               <input type="text" id="segundo_nombre" name="segundo_nombre" />
+              <div class="field-error" id="error-segundo_nombre"></div>
             </div>
 
             <div class="field">
@@ -196,11 +200,13 @@
                 Primer apellido <span class="required">*</span>
               </label>
               <input type="text" id="primer_apellido" name="primer_apellido" data-required="true" />
+              <div class="field-error" id="error-primer_apellido"></div>
             </div>
 
             <div class="field">
               <label for="segundo_apellido">Segundo apellido</label>
               <input type="text" id="segundo_apellido" name="segundo_apellido" />
+              <div class="field-error" id="error-segundo_apellido"></div>
             </div>
 
             <div class="field">
@@ -208,14 +214,14 @@
                 Fecha de nacimiento <span class="required">*</span>
               </label>
               <input type="date" id="fecha_nacimiento" name="fecha_nacimiento" data-required="true" />
+              <div class="field-error" id="error-fecha_nacimiento"></div>
             </div>
 
             <div class="field field-small">
               <label for="edad">Edad</label>
               <input type="number" id="edad" name="edad" readonly />
-              <div class="help-text">
-                Se calcula automáticamente a partir de tu fecha de nacimiento.
-              </div>
+              <div class="help-text">Se calcula automáticamente a partir de tu fecha de nacimiento.</div>
+              <div class="field-error" id="error-edad"></div>
             </div>
 
             <div class="field">
@@ -224,16 +230,16 @@
               </label>
               <p class="field-help">Si se expidió en Bogotá, escoge D.C</p>
               <select id="departamento_expedicion" name="departamento_expedicion" data-required="true"></select>
+              <div class="field-error" id="error-departamento_expedicion"></div>
             </div>
 
             <div class="field">
               <label for="ciudad_expedicion">
                 Ciudad de expedición <span class="required">*</span>
               </label>
-
               <p class="field-help">&nbsp;</p>
-
               <select id="ciudad_expedicion" name="ciudad_expedicion" data-required="true"></select>
+              <div class="field-error" id="error-ciudad_expedicion"></div>
             </div>
 
             <div class="field">
@@ -241,6 +247,7 @@
                 Fecha de expedición <span class="required">*</span>
               </label>
               <input type="date" id="fecha_expedicion" name="fecha_expedicion" data-required="true" />
+              <div class="field-error" id="error-fecha_expedicion"></div>
             </div>
 
             <div class="field">
@@ -255,6 +262,7 @@
                 <option value="divorciado">Divorciado(a)</option>
                 <option value="viudo">Viudo(a)</option>
               </select>
+              <div class="field-error" id="error-estado_civil"></div>
             </div>
 
             <div class="field">
@@ -262,6 +270,7 @@
                 Dirección y barrio <span class="required">*</span>
               </label>
               <input type="text" id="direccion_barrio" name="direccion_barrio" data-required="true" />
+              <div class="field-error" id="error-direccion_barrio"></div>
             </div>
 
             <div class="field">
@@ -269,6 +278,7 @@
                 Departamento de residencia <span class="required">*</span>
               </label>
               <select id="departamento_residencia" name="departamento_residencia" data-required="true"></select>
+              <div class="field-error" id="error-departamento_residencia"></div>
             </div>
 
             <div class="field">
@@ -276,6 +286,7 @@
                 Ciudad de residencia <span class="required">*</span>
               </label>
               <select id="ciudad_residencia" name="ciudad_residencia" data-required="true"></select>
+              <div class="field-error" id="error-ciudad_residencia"></div>
             </div>
 
             <div class="field">
@@ -283,6 +294,7 @@
                 Teléfono / Celular <span class="required">*</span>
               </label>
               <input type="tel" id="telefono" name="telefono" data-required="true" />
+              <div class="field-error" id="error-telefono"></div>
             </div>
 
             <div class="field">
@@ -290,6 +302,7 @@
                 Correo electrónico <span class="required">*</span>
               </label>
               <input type="email" id="correo_electronico" name="correo_electronico" data-required="true" />
+              <div class="field-error" id="error-correo_electronico"></div>
             </div>
 
             <div class="field">
@@ -297,6 +310,7 @@
                 EPS <span class="required">*</span>
               </label>
               <select id="eps" name="eps" data-required="true"></select>
+              <div class="field-error" id="error-eps"></div>
             </div>
 
             <div class="field">
@@ -304,6 +318,7 @@
                 Fondo de pensión <span class="required">*</span>
               </label>
               <select id="afp" name="afp" data-required="true"></select>
+              <div class="field-error" id="error-afp"></div>
             </div>
 
             <div class="field">
@@ -321,6 +336,7 @@
                 <option value="O+">O+</option>
                 <option value="O-">O-</option>
               </select>
+              <div class="field-error" id="error-rh"></div>
             </div>
 
             <div class="field">
@@ -328,6 +344,7 @@
                 Talla pantalón <span class="required">*</span>
               </label>
               <input type="text" id="talla_pantalon" name="talla_pantalon" data-required="true" />
+              <div class="field-error" id="error-talla_pantalon"></div>
             </div>
 
             <div class="field">
@@ -335,6 +352,7 @@
                 Talla camisa <span class="required">*</span>
               </label>
               <input type="text" id="camisa_talla" name="camisa_talla" data-required="true" />
+              <div class="field-error" id="error-camisa_talla"></div>
             </div>
 
             <div class="field">
@@ -342,22 +360,21 @@
                 Talla zapatos <span class="required">*</span>
               </label>
               <input type="text" id="zapatos_talla" name="zapatos_talla" data-required="true" />
+              <div class="field-error" id="error-zapatos_talla"></div>
             </div>
 
             <div class="field">
               <label>Firma <span class="required">*</span></label>
-
               <div class="signature-wrapper">
                 <canvas id="signatureCanvas"></canvas>
               </div>
-
               <div class="signature-actions">
                 <button type="button" class="btn btn-secondary btn-sm" onclick="clearSignature()">
                   Limpiar
                 </button>
               </div>
+              <div class="field-error" id="error-firma"></div>
             </div>
-
           </div>
           <div id="error-step-2" class="error-message"></div>
         </div>
@@ -397,7 +414,6 @@
         <!-- PASO 5: FAMILIA + REFERENCIAS -->
         <div class="form-step" data-step="5">
           <div class="step-title">Paso 5: Familiares y referencias</div>
-
           <p class="help-text">
             Registra tu núcleo familiar y las referencias que podamos contactar.
           </p>
@@ -421,18 +437,22 @@
                 <div class="field">
                   <label>Empresa</label>
                   <input type="text" id="ref_lab_empresa" />
+                  <div class="field-error" id="error-ref_lab_empresa"></div>
                 </div>
                 <div class="field">
                   <label>Jefe inmediato</label>
                   <input type="text" id="ref_lab_jefe" />
+                  <div class="field-error" id="error-ref_lab_jefe"></div>
                 </div>
                 <div class="field">
                   <label>Cargo</label>
                   <input type="text" id="ref_lab_cargo" />
+                  <div class="field-error" id="error-ref_lab_cargo"></div>
                 </div>
                 <div class="field">
                   <label>Teléfono</label>
                   <input type="text" id="ref_lab_tel" />
+                  <div class="field-error" id="error-ref_lab_tel"></div>
                 </div>
               </div>
             </div>
@@ -443,18 +463,22 @@
                 <div class="field">
                   <label>Nombre</label>
                   <input type="text" id="ref_fam_nombre" />
+                  <div class="field-error" id="error-ref_fam_nombre"></div>
                 </div>
                 <div class="field">
                   <label>Parentesco</label>
                   <input type="text" id="ref_fam_parentesco" />
+                  <div class="field-error" id="error-ref_fam_parentesco"></div>
                 </div>
                 <div class="field">
                   <label>Teléfono</label>
                   <input type="text" id="ref_fam_tel" />
+                  <div class="field-error" id="error-ref_fam_tel"></div>
                 </div>
                 <div class="field">
                   <label>Ocupación</label>
                   <input type="text" id="ref_fam_ocupacion" />
+                  <div class="field-error" id="error-ref_fam_ocupacion"></div>
                 </div>
               </div>
             </div>
@@ -465,18 +489,22 @@
                 <div class="field">
                   <label>Nombre</label>
                   <input type="text" id="ref_per_nombre" />
+                  <div class="field-error" id="error-ref_per_nombre"></div>
                 </div>
                 <div class="field">
                   <label>Relación</label>
                   <input type="text" id="ref_per_relacion" />
+                  <div class="field-error" id="error-ref_per_relacion"></div>
                 </div>
                 <div class="field">
                   <label>Teléfono</label>
                   <input type="text" id="ref_per_tel" />
+                  <div class="field-error" id="error-ref_per_tel"></div>
                 </div>
                 <div class="field">
                   <label>Ocupación</label>
                   <input type="text" id="ref_per_ocupacion" />
+                  <div class="field-error" id="error-ref_per_ocupacion"></div>
                 </div>
               </div>
             </div>
@@ -486,7 +514,6 @@
         <!-- PASO 6: EMERGENCIA + METAS -->
         <div class="form-step" data-step="6">
           <div class="step-title">Paso 6: Contacto de emergencia y metas</div>
-
           <p class="help-text">
             Indica a quién debemos contactar en caso de emergencia y cuéntanos tus metas.
           </p>
@@ -495,26 +522,31 @@
             <div class="field">
               <label>Nombre completo (emergencia)</label>
               <input type="text" id="emer_nombre" />
+              <div class="field-error" id="error-emer_nombre"></div>
             </div>
 
             <div class="field">
               <label>Parentesco</label>
               <input type="text" id="emer_parentesco" />
+              <div class="field-error" id="error-emer_parentesco"></div>
             </div>
 
             <div class="field">
               <label>Teléfono</label>
               <input type="tel" id="emer_telefono" />
+              <div class="field-error" id="error-emer_telefono"></div>
             </div>
 
             <div class="field">
               <label>Correo electrónico</label>
               <input type="email" id="emer_correo" />
+              <div class="field-error" id="error-emer_correo"></div>
             </div>
 
             <div class="field" style="grid-column:span 2;">
               <label>Dirección</label>
               <input type="text" id="emer_direccion" />
+              <div class="field-error" id="error-emer_direccion"></div>
             </div>
           </div>
 
@@ -524,16 +556,19 @@
             <div class="field">
               <label>Corto plazo</label>
               <textarea id="meta_corto" rows="2"></textarea>
+              <div class="field-error" id="error-meta_corto"></div>
             </div>
 
             <div class="field">
               <label>Mediano plazo</label>
               <textarea id="meta_mediano" rows="2"></textarea>
+              <div class="field-error" id="error-meta_mediano"></div>
             </div>
 
             <div class="field">
               <label>Largo plazo</label>
               <textarea id="meta_largo" rows="2"></textarea>
+              <div class="field-error" id="error-meta_largo"></div>
             </div>
           </div>
         </div>
@@ -552,11 +587,13 @@
                 <option value="0">No</option>
                 <option value="1">Sí</option>
               </select>
+              <div class="field-error" id="error-seg_llamados"></div>
             </div>
 
             <div class="field hidden" id="detalle_llamados_wrap">
               <label>Describe los llamados de atención</label>
               <textarea id="seg_detalle_llamados" rows="2"></textarea>
+              <div class="field-error" id="error-seg_detalle_llamados"></div>
             </div>
 
             <div class="field">
@@ -565,11 +602,13 @@
                 <option value="0">No</option>
                 <option value="1">Sí</option>
               </select>
+              <div class="field-error" id="error-seg_accidente"></div>
             </div>
 
             <div class="field hidden" id="detalle_accidente_wrap">
               <label>Describe el accidente o enfermedad laboral</label>
               <textarea id="seg_detalle_accidente" rows="2"></textarea>
+              <div class="field-error" id="error-seg_detalle_accidente"></div>
             </div>
 
             <div class="field">
@@ -578,11 +617,13 @@
                 <option value="0">No</option>
                 <option value="1">Sí</option>
               </select>
+              <div class="field-error" id="error-seg_enfermedad"></div>
             </div>
 
             <div class="field hidden" id="detalle_enfermedad_wrap">
               <label>Describe la enfermedad</label>
               <textarea id="seg_detalle_enfermedad" rows="2"></textarea>
+              <div class="field-error" id="error-seg_detalle_enfermedad"></div>
             </div>
 
             <div class="field">
@@ -591,11 +632,13 @@
                 <option value="0">No</option>
                 <option value="1">Sí</option>
               </select>
+              <div class="field-error" id="error-seg_alcohol"></div>
             </div>
 
             <div class="field hidden" id="detalle_alcohol_wrap">
               <label>Frecuencia (si aplica)</label>
               <input type="text" id="seg_frecuencia" />
+              <div class="field-error" id="error-seg_frecuencia"></div>
             </div>
 
             <div class="field">
@@ -604,11 +647,13 @@
                 <option value="0">No</option>
                 <option value="1">Sí</option>
               </select>
+              <div class="field-error" id="error-seg_familiar"></div>
             </div>
 
             <div class="field hidden" id="detalle_familiar_wrap">
               <label>Nombre del familiar y relación</label>
               <input type="text" id="seg_familiar_nombre" />
+              <div class="field-error" id="error-seg_familiar_nombre"></div>
             </div>
 
             <div class="field">
@@ -617,6 +662,7 @@
                 <option value="0">No</option>
                 <option value="1">Sí</option>
               </select>
+              <div class="field-error" id="error-seg_falsa"></div>
             </div>
 
             <div class="field">
@@ -625,32 +671,38 @@
                 <option value="1">Sí</option>
                 <option value="0">No</option>
               </select>
+              <div class="field-error" id="error-seg_poligrafo"></div>
             </div>
           </div>
 
           <div class="field" style="margin-top:14px;">
             <label>Observaciones adicionales</label>
             <textarea id="seg_observaciones" rows="2"></textarea>
+            <div class="field-error" id="error-seg_observaciones"></div>
           </div>
 
           <div class="field">
             <label>¿Por qué crees que calificas para el cargo?</label>
             <textarea id="seg_califica" rows="2"></textarea>
+            <div class="field-error" id="error-seg_califica"></div>
           </div>
 
           <div class="field">
             <label>Fortalezas</label>
             <textarea id="seg_fortal" rows="2"></textarea>
+            <div class="field-error" id="error-seg_fortal"></div>
           </div>
 
           <div class="field">
             <label>Aspectos por mejorar</label>
             <textarea id="seg_mejorar" rows="2"></textarea>
+            <div class="field-error" id="error-seg_mejorar"></div>
           </div>
 
           <div class="field">
             <label>Describe una situación difícil que enfrentaste y cómo la resolviste.</label>
             <textarea id="seg_resolucion" rows="2"></textarea>
+            <div class="field-error" id="error-seg_resolucion"></div>
           </div>
         </div>
 
@@ -659,10 +711,8 @@
           <div class="step-title">Paso 8: Revisión y envío</div>
           <p class="help-text">
             Verifica un resumen de la información que registraste. Puedes volver a pasos anteriores si quieres corregir
-            algo
-            antes de enviar.
+            algo antes de enviar.
           </p>
-
           <div id="preview-container" class="preview-container"></div>
         </div>
 

@@ -13,6 +13,7 @@ import { Storage } from "@google-cloud/storage";
 import express from "express";
 import cors from "cors";
 import mysql from "mysql2/promise";
+import dotenv from "dotenv";
 
 import { fileURLToPath } from "url";
 
@@ -20,6 +21,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.Router())
+dotenv.config();
 
 import correoAspiranteRoutes from "./router/correoAspirante.js";
 
@@ -32,11 +34,11 @@ const __dirname = path.dirname(__filename);
 // ==========================================
 
 const pool = mysql.createPool({
-  host: process.env.DB_HOST || '34.162.109.112',
-  user: process.env.DB_USER || "root",
-  password: process.env.DB_PASS || 'Logyser2025',
-  database: "Desplegables",
-  port: 3307,
+  host: parseInt(process.env.DB_HOST),
+  user: process.env.DB_USER,
+  password: process.env.DB_PASS,
+  database: process.env.DATABSE,
+  port: parseInt(process.env.DBPORT),
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
