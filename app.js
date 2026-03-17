@@ -1,4 +1,7 @@
-const API_URL = "https://curriculum-compact-594761951101.europe-west1.run.app/api/config";
+const API_URL =
+  (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
+    ? "http://localhost:8080/api/config"
+    : "/api/config";
 
 // ==============================
 // Función helper para fetch con timeout y validación
@@ -42,14 +45,15 @@ async function cargarTipoIdentificacion() {
 
     const select = document.getElementById("tipo_documento");
     if (select) {
-      select.innerHTML = `<option value="">Selecciona...</option>`;
+      // Limpiar el select antes de llenar
+      select.innerHTML = '<option value="">Seleccione...</option>';
 
       data.forEach(item => {
-        // Manejar diferentes posibles estructuras de datos
-        const valor = item.descripcion || item.nombre || item.tipo || item;
-        if (valor) {
-          select.innerHTML += `<option value="${valor}">${valor}</option>`;
-        }
+          const option = document.createElement("option");
+          // Usamos item.descripcion porque así viene de tu MySQL
+          option.value = item.descripcion; 
+          option.textContent = item.descripcion; 
+          select.appendChild(option);
       });
     }
 
@@ -71,7 +75,6 @@ async function cargarTipoIdentificacion() {
 async function cargarDepartamentos() {
   try {
     const data = await fetchWithTimeout(`${API_URL}/departamentos`);
-
     if (!Array.isArray(data)) {
       console.error("La respuesta de departamentos no es un array:", data);
       return;
@@ -80,24 +83,37 @@ async function cargarDepartamentos() {
     const depExp = document.getElementById("departamento_expedicion");
     const depRes = document.getElementById("departamento_residencia");
 
-    if (depExp) depExp.innerHTML = `<option value="">Selecciona...</option>`;
-    if (depRes) depRes.innerHTML = `<option value="">Selecciona...</option>`;
+    const fill = (selectEl) => {
+      if (!selectEl) return;
+      selectEl.innerHTML = "";
+      const opt0 = document.createElement("option");
+      opt0.value = "";
+      opt0.textContent = "Selecciona...";
+      selectEl.appendChild(opt0);
 
-    data.forEach(item => {
-      // Manejar diferentes estructuras
-      const departamento = item.departamento || item.nombre || item;
-      if (departamento) {
-        if (depExp) depExp.innerHTML += `<option value="${departamento}">${departamento}</option>`;
-        if (depRes) depRes.innerHTML += `<option value="${departamento}">${departamento}</option>`;
-      }
-    });
+      data.forEach((item) => {
+        const departamento = item.departamento || item.nombre || item;
+        if (!departamento) return;
+        const opt = document.createElement("option");
+        opt.value = departamento;
+        opt.textContent = departamento;
+        selectEl.appendChild(opt);
+      });
+    };
+
+    fill(depExp);
+    fill(depRes);
   } catch (err) {
     console.error("Error cargando departamentos:", err);
 
-    ["departamento_expedicion", "departamento_residencia"].forEach(id => {
+    ["departamento_expedicion", "departamento_residencia"].forEach((id) => {
       const select = document.getElementById(id);
       if (select) {
-        select.innerHTML = `<option value="">Error cargando departamentos</option>`;
+        select.innerHTML = "";
+        const opt = document.createElement("option");
+        opt.value = "";
+        opt.textContent = "Error cargando departamentos";
+        select.appendChild(opt);
       }
     });
   }
@@ -126,14 +142,20 @@ async function cargarCiudades(selectDepartamentoId, selectCiudadId) {
   try {
     const data = await fetchWithTimeout(`${API_URL}/ciudades?departamento=${encodeURIComponent(dep)}`);
 
-    ciudadSelect.innerHTML = `<option value="">Selecciona...</option>`;
+    ciudadSelect.innerHTML = "";
+    const opt0 = document.createElement("option");
+    opt0.value = "";
+    opt0.textContent = "Selecciona...";
+    ciudadSelect.appendChild(opt0);
 
     if (Array.isArray(data)) {
-      data.forEach(item => {
+      data.forEach((item) => {
         const ciudad = item.ciudad || item.nombre || item;
-        if (ciudad) {
-          ciudadSelect.innerHTML += `<option value="${ciudad}">${ciudad}</option>`;
-        }
+        if (!ciudad) return;
+        const opt = document.createElement("option");
+        opt.value = ciudad;
+        opt.textContent = ciudad;
+        ciudadSelect.appendChild(opt);
       });
     }
 
@@ -160,14 +182,21 @@ async function cargarEPS() {
     const select = document.getElementById("eps");
     if (!select) return;
 
-    select.innerHTML = `<option value="">Selecciona...</option>`;
+    select.innerHTML = "";
+      const opt0 = document.createElement("option");
+      opt0.value = "";
+      opt0.textContent = "Selecciona...";
+      select.appendChild(opt0);
 
-    data.forEach(item => {
-      const eps = item.eps || item.nombre || item;
-      if (eps) {
-        select.innerHTML += `<option value="${eps}">${eps}</option>`;
-      }
-    });
+      data.forEach((item) => {
+        const eps = item.eps || item.nombre || item;
+        if (!eps) return;
+        const opt = document.createElement("option");
+        opt.value = eps;
+        opt.textContent = eps;
+        select.appendChild(opt);
+      });
+
   } catch (err) {
     console.error("Error cargando EPS:", err);
 
@@ -193,14 +222,21 @@ async function cargarPension() {
     const select = document.getElementById("afp");
     if (!select) return;
 
-    select.innerHTML = `<option value="">Selecciona...</option>`;
+    select.innerHTML = "";
+      const opt0 = document.createElement("option");
+      opt0.value = "";
+      opt0.textContent = "Selecciona...";
+      select.appendChild(opt0);
 
-    data.forEach(item => {
-      const pension = item.pension || item.nombre || item;
-      if (pension) {
-        select.innerHTML += `<option value="${pension}">${pension}</option>`;
-      }
-    });
+      data.forEach((item) => {
+        const pension = item.pension || item.nombre || item;
+        if (!pension) return;
+        const opt = document.createElement("option");
+        opt.value = pension;
+        opt.textContent = pension;
+        select.appendChild(opt);
+      });
+
   } catch (err) {
     console.error("Error cargando fondos de pensión:", err);
 
@@ -212,17 +248,52 @@ async function cargarPension() {
 }
 
 // ==============================
+// Cargar Estado Civil
+// ==============================
+async function cargarEstadoCivil() {
+  try {
+    const data = await fetchWithTimeout(`${API_URL}/estado-civil`);
+
+    if (!Array.isArray(data)) {
+      console.error("La respuesta de estado-civil no es un array:", data);
+      return;
+    }
+
+    const select = document.getElementById("estado_civil");
+    if (!select) return;
+
+    select.innerHTML = `<option value="">Selecciona una opción</option>`;
+
+    data.forEach(item => {
+      const val = item.estado_civil || item.Condición || item.condicion || item;
+      if (!val) return;
+
+      const option = document.createElement("option");
+      option.value = val;
+      option.textContent = val;
+      select.appendChild(option);
+    });
+  } catch (err) {
+    console.error("Error cargando estado civil:", err);
+    const select = document.getElementById("estado_civil");
+    if (select) {
+      select.innerHTML = `<option value="">Error cargando estado civil</option>`;
+    }
+  }
+}
+
+// ==============================
 // Inicializar todos los selects
 // ==============================
 async function inicializarSelects() {
   try {
     await Promise.all([
-      cargarTipoIdentificacion(),
-      cargarDepartamentos(),
-      cargarEPS(),
-      cargarPension()
-    ]);
-
+    cargarTipoIdentificacion(),
+    cargarDepartamentos(),
+    cargarEPS(),
+    cargarPension(),
+    cargarEstadoCivil()
+  ]);
     window.selectsLoaded = true;
     document.dispatchEvent(new Event("selects-cargados"));
   } catch (err) {

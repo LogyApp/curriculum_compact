@@ -1,3 +1,7 @@
+const API_URL_BASE =
+  (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
+    ? "http://localhost:8080/api"
+    : "/api";
 const form = document.getElementById("hv-form");
 const steps = Array.from(document.querySelectorAll(".form-step"));
 const stepperItems = Array.from(document.querySelectorAll(".stepper .step"));
@@ -124,40 +128,56 @@ function mostrarErrorCampo(idCampo, mensaje) {
 
 // ========= VALIDACIÓN POR PASO =========
 function validateStep(stepIndex) {
-    // Limpiar errores anteriores
+    // 1. Limpiar errores anteriores
     limpiarErroresCampo();
 
     const stepElement = steps[stepIndex];
+    if (!stepElement) return false;
+
     const requiredFields = stepElement.querySelectorAll("[data-required='true']");
     let valid = true;
     let firstInvalid = null;
 
-    // Validar campos obligatorios vacíos
+    // --- MEJORA PARA MÓVILES: Validar si los datos de la API cargaron ---
+    // Si estamos en un paso que depende de selectores (como Ingreso, Datos Personales o Seguridad)
+    const selects = stepElement.querySelectorAll("select");
+    for (let sel of selects) {
+        // Si el select obligatorio dice "Cargando..." o está vacío por error de red
+        if (sel.getAttribute("data-required") === "true" && (sel.options.length <= 1 && sel.innerText.includes("Cargando"))) {
+            alert("⚠️ Algunos datos no cargaron por falla de internet. Por favor, refresca la página.");
+            return false;
+        }
+    }
+
+    // 2. Validar campos obligatorios vacíos
     requiredFields.forEach((field) => {
         const value = (field.value || "").trim();
-        const isInvalid = value === "";
+        // Caso especial para la firma en el último paso
+       if (stepIndex === 1) {
+        const firma = sessionStorage.getItem('firma_temp');
+        if (!firma || firma.length <= 1000) {
+            valid = false;
+            const errorFirma = document.getElementById("error-firma");
+            if (errorFirma) errorFirma.textContent = "Debes dibujar tu firma antes de continuar.";
+        }
+    }
+
+        const isInvalid = value === "" || value === null;
 
         if (isInvalid) {
             field.classList.add('error');
-
-            // Buscar el div de error correspondiente
             const fieldId = field.id;
             if (fieldId) {
                 const errorDiv = document.getElementById(`error-${fieldId}`);
-                if (errorDiv) {
-                    errorDiv.textContent = "Este campo es obligatorio";
-                }
+                if (errorDiv) errorDiv.textContent = "Este campo es obligatorio";
             }
-
-            if (!firstInvalid) {
-                firstInvalid = field;
-            }
+            if (!firstInvalid) firstInvalid = field;
             valid = false;
         }
     });
 
-    // Validaciones específicas por paso
-    if (stepIndex === 2) { // Datos personales
+    // 3. Validaciones específicas por paso (Tu lógica original mejorada)
+    if (stepIndex === 1) { // Datos personales
         // Validar email
         const email = document.getElementById("correo_electronico");
         if (email && email.value) {
@@ -165,163 +185,55 @@ function validateStep(stepIndex) {
             if (!emailRegex.test(email.value)) {
                 email.classList.add('error');
                 const errorDiv = document.getElementById("error-correo_electronico");
-                if (errorDiv) {
-                    errorDiv.textContent = "El correo electrónico no es válido";
-                }
+                if (errorDiv) errorDiv.textContent = "El correo electrónico no es válido";
                 if (!firstInvalid) firstInvalid = email;
                 valid = false;
             }
-        } else if (email && !email.value) {
-            // Ya se validó como obligatorio arriba
         }
 
-        // Validar teléfono (mínimo 7 dígitos)
+        // Validar teléfono (Exactamente 10 dígitos para Colombia)
         const telefono = document.getElementById("telefono");
         if (telefono && telefono.value) {
             const soloNumeros = telefono.value.replace(/\D/g, "");
-            if (soloNumeros.length < 7) {
+            if (soloNumeros.length !== 10) {
                 telefono.classList.add('error');
                 const errorDiv = document.getElementById("error-telefono");
-                if (errorDiv) {
-                    errorDiv.textContent = "El teléfono debe tener al menos 7 dígitos";
-                }
-                if (!firstInvalid) firstInvalid = telefono;
-                valid = false;
-            } else if (soloNumeros.length > 10) {
-                telefono.classList.add('error');
-                const errorDiv = document.getElementById("error-telefono");
-                if (errorDiv) {
-                    errorDiv.textContent = "El teléfono no debe exceder 10 dígitos";
-                }
+                if (errorDiv) errorDiv.textContent = "El teléfono celular debe tener 10 dígitos";
                 if (!firstInvalid) firstInvalid = telefono;
                 valid = false;
             }
         }
 
-        // Validar edad mínima (18 años)
-        const edad = document.getElementById("edad");
-        if (edad && edad.value) {
-            if (parseInt(edad.value) < 18) {
-                edad.classList.add('error');
-                const errorDiv = document.getElementById("error-edad");
-                if (errorDiv) {
-                    errorDiv.textContent = "Debes ser mayor de 18 años";
-                }
-                if (!firstInvalid) firstInvalid = edad;
-                valid = false;
-            }
-        }
-
-        // Validar fecha de nacimiento (no puede ser futura)
-        const fechaNac = document.getElementById("fecha_nacimiento");
-        if (fechaNac && fechaNac.value) {
-            const fechaNacDate = new Date(fechaNac.value);
-            const hoy = new Date();
-            if (fechaNacDate > hoy) {
-                fechaNac.classList.add('error');
-                const errorDiv = document.getElementById("error-fecha_nacimiento");
-                if (errorDiv) {
-                    errorDiv.textContent = "La fecha de nacimiento no puede ser futura";
-                }
-                if (!firstInvalid) firstInvalid = fechaNac;
-                valid = false;
-            }
-        }
-
-        // Validar que la identificación tenga entre 5 y 12 dígitos
+        // Validar identificación (5 a 12 dígitos)
         const identificacion = document.getElementById("identificacion");
         if (identificacion && identificacion.value) {
             const soloNumeros = identificacion.value.replace(/\D/g, "");
             if (soloNumeros.length < 5 || soloNumeros.length > 12) {
                 identificacion.classList.add('error');
                 const errorDiv = document.getElementById("error-identificacion");
-                if (errorDiv) {
-                    errorDiv.textContent = "La identificación debe tener entre 5 y 12 dígitos";
-                }
+                if (errorDiv) errorDiv.textContent = "La identificación debe tener entre 5 y 12 dígitos";
                 if (!firstInvalid) firstInvalid = identificacion;
                 valid = false;
             }
         }
     }
 
-    // Validaciones para Paso 1 (Medio de reclutamiento)
-    if (stepIndex === 1) {
-        const medio = document.getElementById("medio_reclutamiento");
-        if (medio && medio.value === "") {
-            medio.classList.add('error');
-            const errorDiv = document.getElementById("error-medio_reclutamiento");
-            if (errorDiv) {
-                errorDiv.textContent = "Selecciona un medio de reclutamiento";
-            }
-            if (!firstInvalid) firstInvalid = medio;
-            valid = false;
-        }
-
-        // Si es recomendado o empleado interno, validar que el campo de recomendador no esté vacío
-        if (medio && (medio.value === "recomendado" || medio.value === "empleado_interno")) {
-            const recomendador = document.getElementById("recomendador_aspirante");
-            if (recomendador && !recomendador.value.trim()) {
-                recomendador.classList.add('error');
-                const errorDiv = document.getElementById("error-recomendador_aspirante");
-                if (errorDiv) {
-                    errorDiv.textContent = "Este campo es obligatorio cuando seleccionas esta opción";
-                }
-                if (!firstInvalid) firstInvalid = recomendador;
-                valid = false;
-            }
-        }
-    }
-
-    // Validaciones para Paso 0 (Ingreso)
-    if (stepIndex === 0) {
-        const tipoIngreso = document.getElementById("tipo_documento_ingreso");
-        const idIngreso = document.getElementById("identificacion_ingreso");
-
-        if (tipoIngreso && !tipoIngreso.value) {
-            tipoIngreso.classList.add('error');
-            const errorDiv = document.getElementById("error-tipo_documento_ingreso");
-            if (errorDiv) {
-                errorDiv.textContent = "Selecciona un tipo de identificación";
-            }
-            if (!firstInvalid) firstInvalid = tipoIngreso;
-            valid = false;
-        }
-
-        if (idIngreso) {
-            if (!idIngreso.value) {
-                idIngreso.classList.add('error');
-                const errorDiv = document.getElementById("error-identificacion_ingreso");
-                if (errorDiv) {
-                    errorDiv.textContent = "Ingresa tu número de identificación";
-                }
-                if (!firstInvalid) firstInvalid = idIngreso;
-                valid = false;
-            } else {
-                const soloNumeros = idIngreso.value.replace(/\D/g, "");
-                if (soloNumeros.length < 5 || soloNumeros.length > 12) {
-                    idIngreso.classList.add('error');
-                    const errorDiv = document.getElementById("error-identificacion_ingreso");
-                    if (errorDiv) {
-                        errorDiv.textContent = "La identificación debe tener entre 5 y 12 dígitos";
-                    }
-                    if (!firstInvalid) firstInvalid = idIngreso;
-                    valid = false;
-                }
-            }
-        }
-    }
-
-    const errorDiv = document.getElementById(`error-step-${stepIndex}`);
-    if (errorDiv) {
+    // 4. Feedback visual final del paso
+    const errorStepDiv = document.getElementById(`error-step-${stepIndex}`);
+    if (errorStepDiv) {
         if (!valid) {
-            errorDiv.textContent = "Por favor corrige los errores marcados en rojo antes de continuar.";
+            errorStepDiv.textContent = "⚠️ Por favor corrige los campos marcados en rojo.";
+            errorStepDiv.style.display = "block";
         } else {
-            errorDiv.textContent = "";
+            errorStepDiv.textContent = "";
+            errorStepDiv.style.display = "none";
         }
     }
 
     if (firstInvalid) {
         firstInvalid.focus();
+        // Scroll suave al primer error para móviles
+        firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 
     return valid;
@@ -338,11 +250,16 @@ async function validarIngreso() {
     const id = sanitizarNumero(identificacionIngreso.value);
 
     try {
-        const resp = await fetch(`https://curriculum-compact-594761951101.europe-west1.run.app/api/aspirante?identificacion=${id}`);
+    // Definimos la URL base para esta consulta específica de validación
+    const VALIDAR_URL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+        ? "http://localhost:8080/api/aspirante"
+        : "https://curriculum-compact-594761951101.europe-west1.run.app/api/aspirante";
 
-        if (!resp.ok) {
-            throw new Error(`Error HTTP: ${resp.status}`);
-        }
+    const resp = await fetch(`${VALIDAR_URL}?identificacion=${id}`);
+
+    if (!resp.ok) {
+        throw new Error(`Error HTTP: ${resp.status}`);
+    }
 
         const data = await resp.json();
 
@@ -353,6 +270,7 @@ async function validarIngreso() {
             // Guardar en sessionStorage
             sessionStorage.setItem("tipo_ingreso", tipo);
             sessionStorage.setItem("id_ingreso", id);
+            sessionStorage.setItem("aspirante_data", JSON.stringify(data.aspirante));
 
             if (typeof updateIngresoLabel === "function") {
                 updateIngresoLabel();
@@ -441,22 +359,8 @@ function showStep(index) {
 
     currentStep = index;
 
-    if (index === 8) {
-        buildPreview();
-    }
-
-    if (index === 2) {
-        setTimeout(() => {
-            setupSignature();
-            const firmaGuardada = sessionStorage.getItem('firma_temp');
-            if (firmaGuardada && canvas && ctx && firmaGuardada.length > 1000) {
-                const img = new Image();
-                img.onload = function () {
-                    ctx.drawImage(img, 0, 0);
-                };
-                img.src = firmaGuardada;
-            }
-        }, 300);
+    if (index === 7) {
+    buildPreview();
     }
 }
 
@@ -582,39 +486,52 @@ const btnAddExp = document.getElementById("btn-add-exp");
 let expData = [];
 
 function crearCardExp(index, data = {}) {
-    return `
-        <div class="exp-card" data-index="${index}">
-          <div class="exp-grid">
-            <div class="field">
-              <label>Empresa <span class="required">*</span></label>
-              <input type="text" class="exp-empresa" value="${escapeHtml(data.empresa || "")}" data-required="true">
-              <div class="field-error" id="error-exp-empresa-${index}"></div>
-            </div>
-            <div class="field">
-              <label>Cargo <span class="required">*</span></label>
-              <input type="text" class="exp-cargo" value="${escapeHtml(data.cargo || "")}" data-required="true">
-              <div class="field-error" id="error-exp-cargo-${index}"></div>
-            </div>
-            <div class="field">
-              <label>Tiempo laborado</label>
-              <input type="text" class="exp-tiempo" value="${escapeHtml(data.tiempo_laborado || "")}">
-            </div>
-            <div class="field">
-              <label>Salario</label>
-              <input type="text" class="exp-salario" value="${escapeHtml(data.salario || "")}">
-            </div>
-            <div class="field">
-              <label>Motivo del retiro</label>
-              <input type="text" class="exp-motivo" value="${escapeHtml(data.motivo_retiro || "")}">
-            </div>
-            <div class="field" style="grid-column: span 2;">
-              <label>Funciones realizadas</label>
-              <textarea class="exp-funciones" rows="2">${escapeHtml(data.funciones || "")}</textarea>
-            </div>
-          </div>
-          <span class="exp-remove" onclick="eliminarExp(${index})">🗑️ Eliminar</span>
+  return `
+    <div class="exp-card" data-index="${index}">
+      <div class="exp-grid">
+        <div class="field">
+          <label>Empresa *</label>
+          <input type="text" class="exp-empresa" value="${escapeHtml(data.empresa || "")}" data-required="true" />
+          <div class="field-error" id="error-exp-empresa-${index}"></div>
         </div>
-      `;
+
+        <div class="field">
+          <label>Cargo *</label>
+          <input type="text" class="exp-cargo" value="${escapeHtml(data.cargo || "")}" data-required="true" />
+          <div class="field-error" id="error-exp-cargo-${index}"></div>
+        </div>
+
+        <div class="field">
+          <label>Año inicio</label>
+          <input type="number" class="exp-ano" min="1950" max="2050"
+            value="${escapeHtml(data.ano_experiencia || "")}" />
+          <div class="field-error" id="error-exp-ano-${index}"></div>
+        </div>
+
+        <div class="field">
+          <label>Tiempo laborado</label>
+          <input type="text" class="exp-tiempo" value="${escapeHtml(data.tiempo_laborado || "")}" />
+        </div>
+
+        <div class="field">
+          <label>Salario</label>
+          <input type="text" class="exp-salario" value="${escapeHtml(data.salario || "")}" />
+        </div>
+
+        <div class="field">
+          <label>Motivo del retiro</label>
+          <input type="text" class="exp-motivo" value="${escapeHtml(data.motivo_retiro || "")}" />
+        </div>
+
+        <div class="field" style="grid-column: span 2;">
+          <label>Funciones realizadas</label>
+          <textarea class="exp-funciones" rows="2">${escapeHtml(data.funciones || "")}</textarea>
+        </div>
+      </div>
+
+      <span class="exp-remove" onclick="eliminarExp(${index})">🗑️ Eliminar</span>
+    </div>
+  `;
 }
 
 function renderExp() {
@@ -629,6 +546,7 @@ btnAddExp.addEventListener("click", () => {
     expData.push({
         empresa: "",
         cargo: "",
+        ano_experiencia: "",
         tiempo_laborado: "",
         salario: "",
         motivo_retiro: "",
@@ -649,6 +567,7 @@ function recopilarExp() {
     expData = Array.from(cards).map(card => ({
         empresa: sanitizarString(card.querySelector(".exp-empresa")?.value || ""),
         cargo: sanitizarString(card.querySelector(".exp-cargo")?.value || ""),
+        ano_experiencia: sanitizarNumero(card.querySelector(".exp-ano")?.value || ""),
         tiempo_laborado: sanitizarString(card.querySelector(".exp-tiempo")?.value || ""),
         salario: sanitizarString(card.querySelector(".exp-salario")?.value || ""),
         motivo_retiro: sanitizarString(card.querySelector(".exp-motivo")?.value || ""),
@@ -724,12 +643,13 @@ if (Array.isArray(educacionData) && educacionData.length === 0) {
 
 if (Array.isArray(expData) && expData.length === 0) {
     expData.push({
-        empresa: "",
-        cargo: "",
-        tiempo_laborado: "",
-        salario: "",
-        motivo_retiro: "",
-        funciones: ""
+    empresa: "",
+    cargo: "",
+    ano_experiencia: "",
+    tiempo_laborado: "",
+    salario: "",
+    motivo_retiro: "",
+    funciones: ""
     });
     renderExp();
 }
@@ -802,14 +722,14 @@ handleToggle("seg_alcohol", "detalle_alcohol_wrap");
 handleToggle("seg_familiar", "detalle_familiar_wrap");
 
 // ======== Función para ESCAPE HTML ========
-function escapeHtml(str) {
-    if (!str) return "";
-    return String(str)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
+// ✅ Función para escapar HTML en el frontend (para preview/cards)
+function escapeHtml(str = "") {
+  return String(str ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 // ======== Función para PRELLENAR datos ========
@@ -923,6 +843,7 @@ async function rellenarFormulario(a) {
             expData = exp.map(x => ({
                 empresa: sanitizarString(x.empresa || ""),
                 cargo: sanitizarString(x.cargo || ""),
+                ano_experiencia: x.ano_experiencia || "",
                 tiempo_laborado: sanitizarString(x.tiempo_laborado || ""),
                 salario: sanitizarString(x.salario || ""),
                 motivo_retiro: sanitizarString(x.motivo_retiro || ""),
@@ -1078,12 +999,19 @@ btnPrev.addEventListener("click", () => {
 });
 
 btnNext.addEventListener("click", async () => {
+    // 1. Verificación de seguridad para el primer paso (Ingreso)
     if (currentStep === 0) {
-        const ok = await validarIngreso();
+        // Validación técnica: ¿Cargaron los datos de la API?
+        if (tipoDocumentoIngreso && tipoDocumentoIngreso.options.length <= 1) {
+            alert("❌ Los datos de configuración no han cargado correctamente debido a una falla en tu conexión. Por favor, refresca la página e intenta de nuevo.");
+            return;
+        }
+
+        const ok = await validarIngreso(); // Tu lógica original que consulta si existe el aspirante
         if (!ok) return;
 
-        const tipo = sanitizarString(tipoDocumentoIngreso.value);
-        const id = sanitizarNumero(identificacionIngreso.value);
+        const tipo = typeof sanitizarString === "function" ? sanitizarString(tipoDocumentoIngreso.value) : tipoDocumentoIngreso.value;
+        const id = typeof sanitizarNumero === "function" ? sanitizarNumero(identificacionIngreso.value) : identificacionIngreso.value;
 
         sessionStorage.setItem("tipo_ingreso", tipo);
         sessionStorage.setItem("id_ingreso", id);
@@ -1092,27 +1020,35 @@ btnNext.addEventListener("click", async () => {
             updateIngresoLabel();
         }
 
+        // Pequeño delay para asegurar que los datos cargados en validarIngreso se pinten en el DOM
         setTimeout(() => {
             if (!validateStep(currentStep)) return;
             if (currentStep < steps.length - 1) {
-                showStep(currentStep + 1);
+                currentStep++; // Actualizamos la variable global
+                showStep(currentStep);
             }
         }, 300);
         return;
     }
 
-    if (!validateStep(currentStep)) return;
+    // 2. Lógica para el resto de los pasos
+    if (!validateStep(currentStep)) {
+    console.warn("Faltan campos obligatorios en el paso " + currentStep);
+    return;
+    }
 
     if (currentStep < steps.length - 1) {
-        showStep(currentStep + 1);
+    currentStep++;
+    showStep(currentStep);
     }
 });
 
-// Construcción de PREVIEW
+// Reemplaza COMPLETA la función buildPreview() por esta versión:
 function buildPreview() {
     const wrap = document.getElementById("preview-container");
     if (!wrap) return;
 
+    // refrescar arreglos desde UI
     recopilarEducacion();
     recopilarExp();
     recopilarFamiliares();
@@ -1122,63 +1058,242 @@ function buildPreview() {
         return el ? (el.value || "").trim() : "";
     };
 
-    const datosPersonalesResumen = [v("primer_nombre"), v("segundo_nombre"), v("primer_apellido"), v("segundo_apellido")]
-        .filter(Boolean).join(" ");
+    const siNoTxt = (val) => (String(val) === "1" ? "Sí" : "No");
+
+    const nombreCompleto = [v("primer_nombre"), v("segundo_nombre"), v("primer_apellido"), v("segundo_apellido")]
+        .filter(Boolean)
+        .join(" ");
 
     const ciudadResidencia = [v("ciudad_residencia"), v("departamento_residencia")]
-        .filter(Boolean).join(" - ");
+        .filter(Boolean)
+        .join(" - ");
 
-    const medioRec = v("medio_reclutamiento");
-    const educCount = educacionData.length;
-    const expCount = expData.length;
-    const famCount = familiaresData.length;
+    // Foto: tomamos lo que se guarda en hidden
+    const fotoUrl = (document.getElementById("hidden_foto_public_url")?.value || "").trim();
 
-    const bloqueDatos = `
-        <div class="preview-section">
-          <details open>
-            <summary>
-              Datos personales
-              <span class="preview-pill">Obligatorio</span>
-            </summary>
-            <div class="preview-content">
-              <div class="preview-row">
-                <span class="preview-label">Nombre completo</span>
-                <span class="preview-value">${escapeHtml(datosPersonalesResumen) || "-"}</span>
-              </div>
-              <div class="preview-row">
-                <span class="preview-label">Identificación</span>
-                <span class="preview-value">${escapeHtml(v("identificacion")) || "-"}</span>
-              </div>
-              <div class="preview-row">
-                <span class="preview-label">Fecha nacimiento</span>
-                <span class="preview-value">${escapeHtml(v("fecha_nacimiento")) || "-"}</span>
-              </div>
-              <div class="preview-row">
-                <span class="preview-label">Edad</span>
-                <span class="preview-value">${escapeHtml(v("edad")) || "-"}</span>
-              </div>
-              <div class="preview-row">
-                <span class="preview-label">Ciudad de residencia</span>
-                <span class="preview-value">${escapeHtml(ciudadResidencia) || "-"}</span>
-              </div>
-              <div class="preview-row">
-                <span class="preview-label">Teléfono</span>
-                <span class="preview-value">${escapeHtml(v("telefono")) || "-"}</span>
-              </div>
-              <div class="preview-row">
-                <span class="preview-label">Correo</span>
-                <span class="preview-value">${escapeHtml(v("correo_electronico")) || "-"}</span>
-              </div>
+    // Educación/Exp/Fam render simples
+    // REEMPLAZA renderLista dentro de buildPreview() por esta:
+    // ✅ renderLista consistente con CSS preview (mejor en móvil)
+        const renderLista = (items, renderItem, empty = "No registrado") => {
+        if (!Array.isArray(items) || items.length === 0) {
+            return `
+            <div class="preview-row">
+                <div class="preview-label"></div>
+                <div class="preview-value" style="text-align:left;flex:1">${escapeHtml(empty)}</div>
             </div>
-          </details>
-        </div>
-      `;
+            `;
+        }
 
-    wrap.innerHTML = bloqueDatos +
-        `<div class="preview-section">... (resto de secciones igual) ...</div>`;
+        return items.map((it, i) => `
+            <div class="preview-row">
+            <div class="preview-label">${i + 1}.</div>
+            <div class="preview-value" style="text-align:left;flex:1">${renderItem(it)}</div>
+            </div>
+        `).join("");
+        };
+
+    // Referencias
+    const refs = [
+        {
+            tipo_referencia: "Laboral",
+            empresa: v("ref_lab_empresa"),
+            jefe_inmediato: v("ref_lab_jefe"),
+            cargo_jefe: v("ref_lab_cargo"),
+            telefono: v("ref_lab_tel"),
+        },
+        {
+            tipo_referencia: "Familiar",
+            nombre_completo: v("ref_fam_nombre"),
+            parentesco: v("ref_fam_parentesco"),
+            telefono: v("ref_fam_tel"),
+            ocupacion: v("ref_fam_ocupacion"),
+        },
+        {
+            tipo_referencia: "Personal",
+            nombre_completo: v("ref_per_nombre"),
+            relacion: v("ref_per_relacion"),
+            telefono: v("ref_per_tel"),
+            ocupacion: v("ref_per_ocupacion"),
+        },
+    ].filter(r => Object.values(r).some(x => (x || "").trim() !== ""));
+
+    // Cuestionario
+    const cuestionario = [
+        ["Llamados de atención", siNoTxt(v("seg_llamados")), v("seg_detalle_llamados")],
+        ["Accidente laboral", siNoTxt(v("seg_accidente")), v("seg_detalle_accidente")],
+        ["Enfermedad importante", siNoTxt(v("seg_enfermedad")), v("seg_detalle_enfermedad")],
+        ["Consume alcohol", siNoTxt(v("seg_alcohol")), v("seg_frecuencia")],
+        ["Familiar en la empresa", siNoTxt(v("seg_familiar")), v("seg_familiar_nombre")],
+        ["Info falsa", siNoTxt(v("seg_falsa")), ""],
+        ["Acepta polígrafo", (String(v("seg_poligrafo")) === "1" ? "Sí" : "No"), ""],
+    ];
+
+    const bloqueDatosPersonales = `
+      <div class="preview-section">
+        <details open>
+          <summary>Datos personales <span class="preview-pill">Obligatorio</span></summary>
+          <div class="preview-content">
+            ${fotoUrl ? `<div style="margin:8px 0"><img src="${fotoUrl}" alt="Foto" style="max-height:120px;border-radius:12px;border:1px solid #ddd"/></div>` : ""}
+            <div class="preview-row"><div class="preview-label">Nombre completo</div><div class="preview-value">${escapeHtml(nombreCompleto) || "-"}</div></div>
+            <div class="preview-row"><div class="preview-label">Identificación</div><div class="preview-value">${escapeHtml(v("identificacion")) || "-"}</div></div>
+            <div class="preview-row"><div class="preview-label">Fecha nacimiento</div><div class="preview-value">${escapeHtml(v("fecha_nacimiento")) || "-"}</div></div>
+            <div class="preview-row"><div class="preview-label">Edad</div><div class="preview-value">${escapeHtml(v("edad")) || "-"}</div></div>
+            <div class="preview-row"><div class="preview-label">Ciudad de residencia</div><div class="preview-value">${escapeHtml(ciudadResidencia) || "-"}</div></div>
+            <div class="preview-row"><div class="preview-label">Teléfono</div><div class="preview-value">${escapeHtml(v("telefono")) || "-"}</div></div>
+            <div class="preview-row"><div class="preview-label">Correo</div><div class="preview-value">${escapeHtml(v("correo_electronico")) || "-"}</div></div>
+            <div class="preview-row"><div class="preview-label">EPS</div><div class="preview-value">${escapeHtml(v("eps")) || "-"}</div></div>
+            <div class="preview-row"><div class="preview-label">AFP</div><div class="preview-value">${escapeHtml(v("afp")) || "-"}</div></div>
+            <div class="preview-row"><div class="preview-label">RH</div><div class="preview-value">${escapeHtml(v("rh")) || "-"}</div></div>
+            <div class="preview-row"><div class="preview-label">Talla camisa</div><div class="preview-value">${escapeHtml(v("camisa_talla")) || "-"}</div></div>
+            <div class="preview-row"><div class="preview-label">Talla pantalón</div><div class="preview-value">${escapeHtml(v("talla_pantalon")) || "-"}</div></div>
+            <div class="preview-row"><div class="preview-label">Talla zapatos</div><div class="preview-value">${escapeHtml(v("zapatos_talla")) || "-"}</div></div>
+          </div>
+        </details>
+      </div>
+    `;
+
+    const bloqueMedio = `
+      <div class="preview-section">
+        <details>
+          <summary>Medio de reclutamiento</summary>
+          <div class="preview-content">
+            <div class="preview-row"><div class="preview-label">Medio</div><div class="preview-value">${escapeHtml(v("medio_reclutamiento")) || "-"}</div></div>
+            <div class="preview-row"><div class="preview-label">Recomendador</div><div class="preview-value">${escapeHtml(v("recomendador_aspirante")) || "-"}</div></div>
+          </div>
+        </details>
+      </div>
+    `;
+
+    const bloqueEducacion = `
+      <div class="preview-section">
+        <details>
+          <summary>Educación <span class="preview-pill">${educacionData.length}</span></summary>
+          ${renderLista(educacionData, (e) => `
+            <b>${escapeHtml(e.institucion || "-")}</b> — ${escapeHtml(e.programa || "-")}
+            <div style="color:#555;font-size:.82rem">
+              Nivel: ${escapeHtml(e.nivel_escolaridad || "-")} | Modalidad: ${escapeHtml(e.modalidad || "-")} | Año: ${escapeHtml(e.ano || "-")} | Finalizado: ${escapeHtml(String(e.finalizado ?? ""))}
+            </div>
+          `)}
+        </details>
+      </div>
+    `;
+
+    const bloqueExp = `
+      <div class="preview-section">
+        <details>
+          <summary>Experiencia <span class="preview-pill">${expData.length}</span></summary>
+          ${renderLista(expData, (x) => `
+            <b>${escapeHtml(x.empresa || "-")}</b> — ${escapeHtml(x.cargo || "-")}
+            <div style="color:#555;font-size:.82rem">
+              Año inicio: ${escapeHtml(x.ano_experiencia || "-")} | Tiempo: ${escapeHtml(x.tiempo_laborado || "-")} | Salario: ${escapeHtml(x.salario || "-")}
+            </div>
+            <div style="color:#555;font-size:.82rem">Motivo retiro: ${escapeHtml(x.motivo_retiro || "-")}</div>
+            <div style="color:#333;font-size:.82rem">Funciones: ${escapeHtml(x.funciones || "-")}</div>
+          `)}
+        </details>
+      </div>
+    `;
+
+    const bloqueFam = `
+      <div class="preview-section">
+        <details>
+          <summary>Familiares <span class="preview-pill">${familiaresData.length}</span></summary>
+          ${renderLista(familiaresData, (f) => `
+            <b>${escapeHtml(f.nombre_completo || "-")}</b> — ${escapeHtml(f.parentesco || "-")}
+            <div style="color:#555;font-size:.82rem">
+              Edad: ${escapeHtml(String(f.edad || "-"))} | Ocupación: ${escapeHtml(f.ocupacion || "-")} | Conviven: ${escapeHtml(String(f.conviven_juntos ?? "-"))}
+            </div>
+          `)}
+        </details>
+      </div>
+    `;
+
+    const bloqueRefs = `
+      <div class="preview-section">
+        <details>
+          <summary>Referencias <span class="preview-pill">${refs.length}</span></summary>
+          ${renderLista(refs, (r) => `
+            <b>${escapeHtml(r.tipo_referencia || "-")}</b>
+            <div style="color:#555;font-size:.82rem">
+              ${r.empresa ? `Empresa: ${escapeHtml(r.empresa)} | ` : ""}
+              ${r.jefe_inmediato ? `Jefe: ${escapeHtml(r.jefe_inmediato)} | ` : ""}
+              ${r.cargo_jefe ? `Cargo: ${escapeHtml(r.cargo_jefe)} | ` : ""}
+              ${r.nombre_completo ? `Nombre: ${escapeHtml(r.nombre_completo)} | ` : ""}
+              ${r.parentesco ? `Parentesco: ${escapeHtml(r.parentesco)} | ` : ""}
+              ${r.relacion ? `Relación: ${escapeHtml(r.relacion)} | ` : ""}
+              ${r.ocupacion ? `Ocupación: ${escapeHtml(r.ocupacion)} | ` : ""}
+              ${r.telefono ? `Tel: ${escapeHtml(r.telefono)}` : ""}
+            </div>
+          `)}
+        </details>
+      </div>
+    `;
+
+    const bloqueEmer = `
+      <div class="preview-section">
+        <details>
+          <summary>Contacto de emergencia</summary>
+          <div class="preview-content">
+            <div class="preview-row"><div class="preview-label">Nombre</div><div class="preview-value">${escapeHtml(v("emer_nombre")) || "-"}</div></div>
+            <div class="preview-row"><div class="preview-label">Parentesco</div><div class="preview-value">${escapeHtml(v("emer_parentesco")) || "-"}</div></div>
+            <div class="preview-row"><div class="preview-label">Teléfono</div><div class="preview-value">${escapeHtml(v("emer_telefono")) || "-"}</div></div>
+            <div class="preview-row"><div class="preview-label">Correo</div><div class="preview-value">${escapeHtml(v("emer_correo")) || "-"}</div></div>
+            <div class="preview-row"><div class="preview-label">Dirección</div><div class="preview-value">${escapeHtml(v("emer_direccion")) || "-"}</div></div>
+          </div>
+        </details>
+      </div>
+    `;
+
+    const bloqueMetas = `
+      <div class="preview-section">
+        <details>
+          <summary>Metas personales</summary>
+          <div class="preview-content">
+            <div class="preview-row"><div class="preview-label">Corto plazo</div><div class="preview-value">${escapeHtml(v("meta_corto")) || "-"}</div></div>
+            <div class="preview-row"><div class="preview-label">Mediano plazo</div><div class="preview-value">${escapeHtml(v("meta_mediano")) || "-"}</div></div>
+            <div class="preview-row"><div class="preview-label">Largo plazo</div><div class="preview-value">${escapeHtml(v("meta_largo")) || "-"}</div></div>
+          </div>
+        </details>
+      </div>
+    `;
+
+    const bloqueSeg = `
+      <div class="preview-section">
+        <details>
+          <summary>Cuestionario y seguridad</summary>
+          <div class="preview-content">
+            ${cuestionario.map(([titulo, val, detalle]) => `
+              <div class="preview-row">
+                <div class="preview-label">${escapeHtml(titulo)}</div>
+                <div class="preview-value">${escapeHtml(val || "-")}</div>
+              </div>
+              ${detalle ? `<div class="preview-row"><div class="preview-label">Detalle</div><div class="preview-value">${escapeHtml(detalle)}</div></div>` : ""}
+            `).join("")}
+
+            <div class="preview-row"><div class="preview-label">Observaciones</div><div class="preview-value">${escapeHtml(v("seg_observaciones")) || "-"}</div></div>
+            <div class="preview-row"><div class="preview-label">Por qué califica</div><div class="preview-value">${escapeHtml(v("seg_califica")) || "-"}</div></div>
+            <div class="preview-row"><div class="preview-label">Fortalezas</div><div class="preview-value">${escapeHtml(v("seg_fortal")) || "-"}</div></div>
+            <div class="preview-row"><div class="preview-label">Aspectos por mejorar</div><div class="preview-value">${escapeHtml(v("seg_mejorar")) || "-"}</div></div>
+            <div class="preview-row"><div class="preview-label">Resolución de problemas</div><div class="preview-value">${escapeHtml(v("seg_resolucion")) || "-"}</div></div>
+          </div>
+        </details>
+      </div>
+    `;
+
+    // REEMPLAZA el wrap.innerHTML actual por este:
+        wrap.innerHTML =
+        bloqueDatosPersonales +
+        bloqueMedio +
+        bloqueEducacion +
+        bloqueExp +
+        bloqueFam +
+        bloqueRefs +
+        bloqueEmer +
+        bloqueMetas +
+        bloqueSeg;
 }
 
-// ======= Foto de perfil =======
+// ======= Foto de perfil (MEJORADO: opcional + auto-subida) =======
 const photoInput = document.getElementById("photo_input");
 const btnUploadPhoto = document.getElementById("btn-upload-photo");
 const btnRemovePhoto = document.getElementById("btn-remove-photo");
@@ -1186,200 +1301,314 @@ const photoImg = document.getElementById("photo-img");
 const photoPlaceholder = document.getElementById("photo-placeholder");
 const photoStatus = document.getElementById("photo-status");
 
+// Estado: evita avanzar/enviar mientras una subida esté en curso
+let photoUploading = false;
+
 function ensureFotoHiddenInputs() {
-    const formEl = document.getElementById("hv-form");
-    if (!formEl) return {};
-    let hidPath = document.getElementById("hidden_foto_gcs_path");
-    if (!hidPath) {
-        hidPath = document.createElement("input");
-        hidPath.type = "hidden";
-        hidPath.id = "hidden_foto_gcs_path";
-        hidPath.name = "foto_gcs_path";
-        formEl.appendChild(hidPath);
-    }
-    let hidUrl = document.getElementById("hidden_foto_public_url");
-    if (!hidUrl) {
-        hidUrl = document.createElement("input");
-        hidUrl.type = "hidden";
-        hidUrl.id = "hidden_foto_public_url";
-        hidUrl.name = "foto_public_url";
-        formEl.appendChild(hidUrl);
-    }
-    return { hidPath, hidUrl };
+  const formEl = document.getElementById("hv-form");
+  if (!formEl) return {};
+  let hidPath = document.getElementById("hidden_foto_gcs_path");
+  if (!hidPath) {
+    hidPath = document.createElement("input");
+    hidPath.type = "hidden";
+    hidPath.id = "hidden_foto_gcs_path";
+    hidPath.name = "foto_gcs_path";
+    formEl.appendChild(hidPath);
+  }
+  let hidUrl = document.getElementById("hidden_foto_public_url");
+  if (!hidUrl) {
+    hidUrl = document.createElement("input");
+    hidUrl.type = "hidden";
+    hidUrl.id = "hidden_foto_public_url";
+    hidUrl.name = "foto_public_url";
+    formEl.appendChild(hidUrl);
+  }
+  return { hidPath, hidUrl };
+}
+
+function getFotoHidden() {
+  const hidPath = document.getElementById("hidden_foto_gcs_path");
+  const hidUrl = document.getElementById("hidden_foto_public_url");
+  return {
+    gcsPath: (hidPath?.value || "").trim(),
+    publicUrl: (hidUrl?.value || "").trim()
+  };
+}
+
+function isFotoSeleccionadaLocal() {
+  return Boolean(photoInput && photoInput.files && photoInput.files.length > 0);
 }
 
 function setPhotoPreview(url, gcsPath = "") {
-    const { hidPath, hidUrl } = ensureFotoHiddenInputs();
-    if (url) {
-        photoImg.src = url;
-        photoImg.style.display = "block";
-        photoPlaceholder.style.display = "none";
-        btnRemovePhoto.classList.remove("hidden");
-        if (hidPath) hidPath.value = gcsPath || "";
-        if (hidUrl) hidUrl.value = url || "";
-    } else {
-        photoImg.src = "";
-        photoImg.style.display = "none";
-        photoPlaceholder.style.display = "block";
-        btnRemovePhoto.classList.add("hidden");
-        if (hidPath) hidPath.value = "";
-        if (hidUrl) hidUrl.value = "";
-    }
+  const { hidPath, hidUrl } = ensureFotoHiddenInputs();
+
+  if (url) {
+    photoImg.src = url;
+    photoImg.style.display = "block";
+    photoPlaceholder.style.display = "none";
+    btnRemovePhoto.classList.remove("hidden");
+    if (hidPath) hidPath.value = gcsPath || "";
+    if (hidUrl) hidUrl.value = url || "";
+  } else {
+    photoImg.src = "";
+    photoImg.style.display = "none";
+    photoPlaceholder.style.display = "block";
+    btnRemovePhoto.classList.add("hidden");
+    if (hidPath) hidPath.value = "";
+    if (hidUrl) hidUrl.value = "";
+  }
 }
 
 function clearPhotoLocal() {
-    setPhotoPreview("", "");
-    photoStatus.textContent = "";
-    if (photoInput) photoInput.value = "";
+  setPhotoPreview("", "");
+  if (photoStatus) photoStatus.textContent = "";
+  if (photoInput) photoInput.value = "";
+  const err = document.getElementById("error-photo");
+  if (err) err.textContent = "";
 }
 
-if (photoInput) {
-    photoInput.addEventListener("change", () => {
-        const f = photoInput.files && photoInput.files[0];
-        if (!f) return;
-        if (!f.type.startsWith("image/")) {
-            alert("Sólo se aceptan imágenes (jpg/png).");
-            photoInput.value = "";
-            return;
-        }
-        const maxBytes = 5 * 1024 * 1024;
-        if (f.size > maxBytes) {
-            alert("La imagen excede el límite de 5 MB.");
-            photoInput.value = "";
-            return;
-        }
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-            setPhotoPreview(ev.target.result, "");
-        };
-        reader.readAsDataURL(f);
-    });
+function setUploadingState(isUploading, msg = "") {
+  photoUploading = isUploading;
+
+  if (photoStatus) photoStatus.textContent = msg || (isUploading ? "Subiendo foto..." : "");
+  if (btnUploadPhoto) btnUploadPhoto.disabled = isUploading;
+
+  // UX: no bloqueamos toda la navegación global aquí porque depende de tu flujo,
+  // pero puedes bloquear Next/Submit en tus handlers con `if (photoUploading) return;`
+}
+
+// ✅ Validación: foto opcional.
+// Solo bloquea si el usuario seleccionó un archivo local y aún no se ha subido.
+function validarFotoSiAplica() {
+  const err = document.getElementById("error-photo");
+  const { gcsPath } = getFotoHidden();
+
+  if (!isFotoSeleccionadaLocal()) {
+    // No seleccionó archivo: NO es obligatoria
+    if (err) err.textContent = "";
+    return true;
+  }
+
+  // Seleccionó archivo: exige que ya esté subida a GCS (hidPath lleno)
+  if (!gcsPath) {
+    if (err) err.textContent = "La foto está seleccionada pero aún no se ha subido. Espera un momento.";
+    return false;
+  }
+
+  if (err) err.textContent = "";
+  return true;
 }
 
 async function uploadPhoto() {
-    const file = photoInput.files && photoInput.files[0];
-    let identificacionVal = (document.getElementById("identificacion")?.value || "").trim();
-    if (!identificacionVal) {
-        identificacionVal = sessionStorage.getItem("id_ingreso") || "";
+  const file = photoInput.files && photoInput.files[0];
+
+  let identificacionVal = (document.getElementById("identificacion")?.value || "").trim();
+  if (!identificacionVal) identificacionVal = sessionStorage.getItem("id_ingreso") || "";
+
+  if (!identificacionVal) throw new Error("Primero ingresa número de identificación (Paso 0).");
+  if (!file) throw new Error("Selecciona un archivo antes de subir.");
+
+  // Validaciones
+  if (!file.type.startsWith("image/")) throw new Error("Sólo se aceptan imágenes (jpg/png).");
+  const maxBytes = 5 * 1024 * 1024;
+  if (file.size > maxBytes) throw new Error("La imagen excede el límite de 5 MB.");
+
+  setUploadingState(true, "Subiendo foto...");
+
+  try {
+    const formData = new FormData();
+    formData.append("identificacion", identificacionVal);
+    formData.append("photo", file);
+
+    const resp = await fetch(`${API_URL_BASE}/hv/upload-photo`, {
+      method: "POST",
+      body: formData
+    });
+
+    const contentType = resp.headers.get("content-type") || "";
+    let result;
+    if (contentType.includes("application/json")) {
+      result = await resp.json();
+    } else {
+      const text = await resp.text();
+      throw new Error(`Respuesta no-JSON del servidor (HTTP ${resp.status}). Inicio: ${text.slice(0, 120)}`);
     }
-    if (!identificacionVal) {
-        alert("Primero ingresa número de identificación (Paso 0).");
-        return;
-    }
-    if (!file) {
-        alert("Selecciona un archivo antes de subir.");
-        return;
+
+    if (!resp.ok) {
+      throw new Error(result?.error || "Error subiendo la foto");
     }
 
-    try {
-        btnUploadPhoto.disabled = true;
-        photoStatus.textContent = "Subiendo...";
-        const form = new FormData();
-        form.append("identificacion", identificacionVal);
-        form.append("photo", file);
+    const { foto_gcs_path, foto_public_url } = result;
+    setPhotoPreview(foto_public_url || "", foto_gcs_path || "");
+    setUploadingState(false, "Foto subida correctamente.");
 
-        const resp = await fetch("https://curriculum-compact-594761951101.europe-west1.run.app/api/hv/upload-photo", {
-            method: "POST",
-            body: form
-        });
+    const err = document.getElementById("error-photo");
+    if (err) err.textContent = "";
 
-        const result = await resp.json();
-        if (!resp.ok) {
-            const msg = result && result.error ? result.error : "Error subiendo la foto";
-            throw new Error(msg);
-        }
-
-        const { foto_gcs_path, foto_public_url } = result;
-        setPhotoPreview(foto_public_url || "", foto_gcs_path || "");
-        photoStatus.textContent = "Subida correctamente.";
-
-        // Limpiar error de foto si existía
-        document.getElementById("error-photo").textContent = "";
-    } catch (err) {
-        console.error("uploadPhoto error:", err);
-        alert("Error subiendo la foto: " + (err.message || err));
-        photoStatus.textContent = "Error al subir.";
-    } finally {
-        btnUploadPhoto.disabled = false;
-    }
+    return result;
+  } catch (e) {
+    console.error("uploadPhoto error:", e);
+    setUploadingState(false, "Error al subir la foto.");
+    throw e;
+  } finally {
+    // Si quieres reintento manual, puedes volver a habilitar el botón aquí.
+    // (ya se habilita en setUploadingState(false))
+  }
 }
 
-if (btnUploadPhoto) btnUploadPhoto.addEventListener("click", uploadPhoto);
+// 🔁 Auto-subida al seleccionar archivo (reemplaza el flujo “selecciona y luego presiona subir”)
+if (photoInput) {
+  photoInput.addEventListener("change", async () => {
+    const f = photoInput.files && photoInput.files[0];
+    if (!f) return;
 
-// Modal de eliminación de foto
+    // Preview local SIN base64 (solo visual)
+    const localUrl = URL.createObjectURL(f);
+    photoImg.src = localUrl;
+    photoImg.style.display = "block";
+    photoPlaceholder.style.display = "none";
+    btnRemovePhoto.classList.remove("hidden");
+
+    // Limpiar hidden (evita inconsistencias si había una foto previa)
+    const { hidPath, hidUrl } = ensureFotoHiddenInputs();
+    if (hidPath) hidPath.value = "";
+    if (hidUrl) hidUrl.value = "";
+
+    // Auto-subir
+    try {
+      await uploadPhoto();
+    } catch (err) {
+      alert("Error subiendo la foto: " + (err?.message || err));
+      // dejamos el preview local, pero hidden queda vacío => no se enviará como foto en HV
+      // si deseas, aquí puedes limpiar todo:
+      // clearPhotoLocal();
+    }
+  });
+}
+
+// Botón de subir: lo dejamos como "reintentar" si falló la auto-subida (opcional)
+if (btnUploadPhoto) {
+  btnUploadPhoto.addEventListener("click", async () => {
+    try {
+      await uploadPhoto();
+    } catch (err) {
+      alert("Error subiendo la foto: " + (err?.message || err));
+    }
+  });
+
+  // Si quieres ocultarlo siempre:
+  // btnUploadPhoto.classList.add("hidden");
+}
+
+// Modal de eliminación de foto (local)
 if (btnRemovePhoto) {
-    const modalBackdrop = document.getElementById("deletePhotoModalBackdrop");
-    const modalCancel = document.getElementById("deleteModalCancel");
-    const modalConfirm = document.getElementById("deleteModalConfirm");
+  const modalBackdrop = document.getElementById("deletePhotoModalBackdrop");
+  const modalCancel = document.getElementById("deleteModalCancel");
+  const modalConfirm = document.getElementById("deleteModalConfirm");
 
-    btnRemovePhoto.addEventListener("click", () => {
-        if (!modalBackdrop) {
-            if (!confirm("¿Está seguro de eliminar esta foto?")) return;
-            clearPhotoLocal();
+  btnRemovePhoto.addEventListener("click", () => {
+    if (!modalBackdrop) {
+      if (!confirm("¿Está seguro de eliminar esta foto?")) return;
+      clearPhotoLocal();
+      return;
+    }
+    modalBackdrop.classList.add("visible");
+    modalBackdrop.setAttribute("aria-hidden", "false");
+    if (modalConfirm) modalConfirm.focus();
+  });
+
+  if (modalCancel) {
+    modalCancel.addEventListener("click", () => {
+      modalBackdrop.classList.remove("visible");
+      modalBackdrop.setAttribute("aria-hidden", "true");
+      btnRemovePhoto.focus();
+    });
+  }
+
+  if (modalConfirm) {
+    modalConfirm.addEventListener("click", async () => {
+        try {
+        if (modalBackdrop) {
+            modalBackdrop.classList.remove("visible");
+            modalBackdrop.setAttribute("aria-hidden", "true");
+        }
+
+        // Identificación para borrar en servidor
+        let identificacionVal = (document.getElementById("identificacion")?.value || "").trim();
+        if (!identificacionVal) identificacionVal = sessionStorage.getItem("id_ingreso") || "";
+
+        if (!identificacionVal) {
+            clearPhotoLocal(); // al menos limpia local
+            alert("Foto eliminada de la vista. No se pudo eliminar del servidor porque no hay identificación.");
             return;
         }
-        modalBackdrop.classList.add("visible");
-        modalBackdrop.setAttribute("aria-hidden", "false");
-        if (modalConfirm) modalConfirm.focus();
-    });
 
-    if (modalCancel) {
-        modalCancel.addEventListener("click", () => {
-            if (!modalBackdrop) return;
-            modalBackdrop.classList.remove("visible");
-            modalBackdrop.setAttribute("aria-hidden", "true");
-            btnRemovePhoto.focus();
-        });
-    }
+        // Solo intentar borrar en servidor si hay una foto “guardada”
+        const hidPath = document.getElementById("hidden_foto_gcs_path");
+        const hidUrl = document.getElementById("hidden_foto_public_url");
+        const tieneFotoGuardada = Boolean((hidPath?.value || "").trim() || (hidUrl?.value || "").trim());
 
-    if (modalConfirm) {
-        modalConfirm.addEventListener("click", async () => {
-            try {
-                if (modalBackdrop) {
-                    modalBackdrop.classList.remove("visible");
-                    modalBackdrop.setAttribute("aria-hidden", "true");
-                }
-                clearPhotoLocal();
-            } catch (err) {
-                console.error("Error al confirmar eliminación de foto:", err);
-            } finally {
-                btnRemovePhoto.focus();
+        if (tieneFotoGuardada) {
+            photoStatus.textContent = "Eliminando foto...";
+            const resp = await fetch(`${API_URL_BASE}/hv/foto/${encodeURIComponent(identificacionVal)}`, {
+            method: "DELETE"
+            });
+
+            const contentType = resp.headers.get("content-type") || "";
+            const result = contentType.includes("application/json") ? await resp.json() : { ok: false };
+
+            if (!resp.ok || !result.ok) {
+            throw new Error(result?.error || `No se pudo eliminar la foto (HTTP ${resp.status})`);
             }
-        });
-    }
+        }
 
-    document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape" && modalBackdrop && modalBackdrop.classList.contains("visible")) {
-            modalBackdrop.classList.remove("visible");
-            modalBackdrop.setAttribute("aria-hidden", "true");
-            btnRemovePhoto.focus();
+        // Limpieza final local
+        clearPhotoLocal();
+        photoStatus.textContent = "Foto eliminada.";
+        } catch (err) {
+        console.error("Error eliminando foto:", err);
+        alert("No se pudo eliminar la foto del servidor: " + (err?.message || err));
+        photoStatus.textContent = "Error al eliminar.";
+        } finally {
+        btnRemovePhoto.focus();
         }
     });
-
-    if (modalBackdrop) {
-        modalBackdrop.addEventListener("click", (e) => {
-            if (e.target === modalBackdrop) {
-                modalBackdrop.classList.remove("visible");
-                modalBackdrop.setAttribute("aria-hidden", "true");
-                btnRemovePhoto.focus();
-            }
-        });
     }
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && modalBackdrop && modalBackdrop.classList.contains("visible")) {
+      modalBackdrop.classList.remove("visible");
+      modalBackdrop.setAttribute("aria-hidden", "true");
+      btnRemovePhoto.focus();
+    }
+  });
+
+  if (modalBackdrop) {
+    modalBackdrop.addEventListener("click", (e) => {
+      if (e.target === modalBackdrop) {
+        modalBackdrop.classList.remove("visible");
+        modalBackdrop.setAttribute("aria-hidden", "true");
+        btnRemovePhoto.focus();
+      }
+    });
+  }
 }
 
 function rellenarFotoDesdeAspirante(aspirante) {
-    try {
-        if (!aspirante) return;
-        const url = aspirante.foto_public_url || aspirante.foto_url || null;
-        const gcsPath = aspirante.foto_gcs_path || null;
-        if (url) {
-            setPhotoPreview(url, gcsPath || "");
-        } else {
-            clearPhotoLocal();
-        }
-    } catch (err) {
-        console.error("rellenarFotoDesdeAspirante error:", err);
+  try {
+    if (!aspirante) return;
+    const url = aspirante.foto_public_url || aspirante.foto_url || null;
+    const gcsPath = aspirante.foto_gcs_path || null;
+
+    if (url) {
+      setPhotoPreview(url, gcsPath || "");
+      if (photoStatus) photoStatus.textContent = "Foto cargada previamente.";
+    } else {
+      clearPhotoLocal();
     }
+  } catch (err) {
+    console.error("rellenarFotoDesdeAspirante error:", err);
+  }
 }
 
 // RESET del formulario
@@ -1473,6 +1702,10 @@ function resetFormToInitialState() {
 form.addEventListener("submit", async (e) => {
     e.preventDefault();
 
+    // Limpiar resumen de errores previo
+    const resumenError = document.getElementById("resumen-errores");
+    if (resumenError) resumenError.textContent = "";
+
     if (form.dataset.submitting === "1") return;
     form.dataset.submitting = "1";
 
@@ -1480,42 +1713,45 @@ form.addEventListener("submit", async (e) => {
     btnSubmit.disabled = true;
     btnNext.disabled = true;
     btnPrev.disabled = true;
-    btnSubmit.innerHTML = "Enviando...";
+    btnSubmit.innerHTML = "Enviando... No cierre la ventana";
 
     try {
-        // Validar campos obligatorios finales
+        // 1. Validar campos obligatorios finales
         if (!validateStep(currentStep)) {
-            throw new Error("Hay campos obligatorios sin completar");
+            throw new Error("Hay campos obligatorios sin completar en este paso.");
         }
 
-        // Validar firma
+        // ✅ Foto opcional: solo bloquear si hay foto seleccionada y aún NO terminó la subida
+        if (!validarFotoSiAplica()) {
+        throw new Error("Seleccionaste una foto, pero aún se está subiendo. Espera un momento o elimina la foto para continuar.");
+        }
+        // 2. Validar firma (Crucial para estabilidad en móviles)
         const firmaGuardada = sessionStorage.getItem('firma_temp');
         if (!firmaGuardada || firmaGuardada.length <= 1000) {
-            mostrarErrorCampo('firma', 'Debes dibujar tu firma');
-            throw new Error("Firma no válida");
+            const errorFirma = document.getElementById("error-firma");
+        if (errorFirma) errorFirma.textContent = "Debes dibujar tu firma antes de enviar.";
+            throw new Error("La firma no se detecta o es muy corta. Por favor, firma de nuevo.");
         }
 
-        // Preparar payload
+        // 3. Preparar payload (Tu lógica original intacta)
         const formData = new FormData(form);
         const data = {};
         formData.forEach((value, key) => {
-            data[key] = sanitizarString(value);
+            data[key] = typeof sanitizarString === "function" ? sanitizarString(value) : value;
         });
 
-        // Sanitizar campos específicos
-        data.identificacion = sanitizarNumero(data.identificacion || sessionStorage.getItem("id_ingreso") || "");
-        data.telefono = sanitizarNumero(data.telefono || "");
+        data.identificacion = typeof sanitizarNumero === "function" ? sanitizarNumero(data.identificacion || sessionStorage.getItem("id_ingreso") || "") : (data.identificacion || "");
+        data.telefono = typeof sanitizarNumero === "function" ? sanitizarNumero(data.telefono || "") : (data.telefono || "");
 
-        // Formatear fechas
-        data.fecha_nacimiento = formatearFechaParaServidor(data.fecha_nacimiento);
-        data.fecha_expedicion = formatearFechaParaServidor(data.fecha_expedicion);
+        if (typeof formatearFechaParaServidor === "function") {
+            data.fecha_nacimiento = formatearFechaParaServidor(data.fecha_nacimiento);
+            data.fecha_expedicion = formatearFechaParaServidor(data.fecha_expedicion);
+        }
 
-        // Arrays dinámicos
         data.educacion = recopilarEducacion();
         data.experiencia_laboral = recopilarExp();
         data.familiares = recopilarFamiliares();
 
-        // Referencias - sanitizadas
         data.referencias = [
             {
                 tipo_referencia: "laboral",
@@ -1538,9 +1774,8 @@ form.addEventListener("submit", async (e) => {
                 telefono: sanitizarNumero(ref_per_tel.value),
                 ocupacion: sanitizarString(ref_per_ocupacion.value),
             }
-        ].filter(ref => Object.values(ref).some(v => v)); // Filtrar referencias vacías
+        ].filter(ref => Object.values(ref).some(v => v));
 
-        // Contacto de emergencia
         data.contacto_emergencia = {
             nombre_completo: sanitizarString(emer_nombre.value),
             parentesco: sanitizarString(emer_parentesco.value),
@@ -1549,27 +1784,26 @@ form.addEventListener("submit", async (e) => {
             direccion: sanitizarString(emer_direccion.value)
         };
 
-        // Metas personales
         data.metas_personales = {
-            corto_plazo: sanitizarString(meta_corto.value),
-            mediano_plazo: sanitizarString(meta_mediano.value),
-            largo_plazo: sanitizarString(meta_largo.value),
+            meta_corto_plazo: sanitizarString(meta_corto.value),
+            meta_mediano_plazo: sanitizarString(meta_mediano.value),
+            meta_largo_plazo: sanitizarString(meta_largo.value),
         };
 
-        // Seguridad
         data.seguridad = {
-            llamados_atencion: seg_llamados.value,
+            // Convertimos a número (1 o 0) para que MySQL tinyint no falle
+            llamados_atencion: parseInt(seg_llamados.value) || 0,
             detalle_llamados: sanitizarString(seg_detalle_llamados?.value || ""),
-            accidente_laboral: seg_accidente.value,
+            accidente_laboral: parseInt(seg_accidente.value) || 0,
             detalle_accidente: sanitizarString(seg_detalle_accidente?.value || ""),
-            enfermedad_importante: seg_enfermedad.value,
+            enfermedad_importante: parseInt(seg_enfermedad.value) || 0,
             detalle_enfermedad: sanitizarString(seg_detalle_enfermedad?.value || ""),
-            consume_alcohol: seg_alcohol.value,
+            consume_alcohol: parseInt(seg_alcohol.value) || 0,
             frecuencia_alcohol: sanitizarString(seg_frecuencia.value),
-            familiar_en_empresa: seg_familiar.value,
+            familiar_en_empresa: parseInt(seg_familiar.value) || 0,
             detalle_familiar_empresa: sanitizarString(seg_familiar_nombre.value),
-            info_falsa: seg_falsa.value,
-            acepta_poligrafo: seg_poligrafo.value,
+            info_falsa: parseInt(seg_falsa.value) || 0,
+            acepta_poligrafo: parseInt(seg_poligrafo.value) || 0,
             observaciones: sanitizarString(seg_observaciones.value),
             califica_para_cargo: sanitizarString(seg_califica.value),
             fortalezas: sanitizarString(seg_fortal.value),
@@ -1577,61 +1811,100 @@ form.addEventListener("submit", async (e) => {
             resolucion_problemas: sanitizarString(seg_resolucion.value)
         };
 
-        // FIRMA
         data.firma_base64 = firmaGuardada;
 
-        // Timeout de 30 segundos
-        const controller = new AbortController();
-        const timeoutMs = 30000;
-        const timeout = setTimeout(() => controller.abort(), timeoutMs);
+        // ✅ PEGAR AQUÍ (antes del fetch):
+        if (data.foto_public_url && String(data.foto_public_url).startsWith("data:image/")) {
+        delete data.foto_public_url;
+        }
+        if (data.foto_gcs_path && String(data.foto_gcs_path).startsWith("data:")) {
+        delete data.foto_gcs_path;
+        }
 
-        // Enviar al servidor
-        const resp = await fetch("https://curriculum-compact-594761951101.europe-west1.run.app/api/hv/registrar", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(data),
-            signal: controller.signal
+        // 4. Intento de envío con manejo de errores de red (Ajustado a 45s para móviles)
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 45000);
+
+        const resp = await fetch(`${API_URL_BASE}/hv/registrar`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        signal: controller.signal
         });
 
         clearTimeout(timeout);
+        const contentType = resp.headers.get("content-type") || "";
+        let result;
 
-        const result = await resp.json();
+        if (contentType.includes("application/json")) {
+        result = await resp.json();
+        } else {
+        const text = await resp.text();
+        throw new Error(`Respuesta no-JSON (HTTP ${resp.status}). Inicio: ${text.slice(0, 120)}`);
+        }
 
-        if (resp.ok && result.ok) {
+        if (resp.ok && (result.ok || result.success)) {
             sessionStorage.removeItem('firma_temp');
             alert("✅ Hoja de vida registrada correctamente.");
-
             if (typeof resetFormToInitialState === "function") {
                 resetFormToInitialState();
             } else {
                 location.reload();
             }
         } else {
-            const msg = (result && result.error) ? result.error : "Ocurrió un error guardando la hoja de vida.";
-            alert("⚠ " + msg);
-            console.error("Error del servidor:", result);
+        const detalles = result && (result.details || result.error)
+            ? (result.details || result.error)
+            : "Error desconocido";
+
+        // ✅ LOG TÉCNICO (esto nos dice EXACTAMENTE qué pasó)
+        console.error("Detalle servidor:", detalles, result);
+
+        // Mensaje amigable al usuario
+        throw new Error("No pudimos registrar tu hoja de vida. Por favor intenta de nuevo.");
         }
+
     } catch (err) {
         console.error("Error en submit HV:", err);
-        if (err.name === "AbortError") {
-            alert("⚠ Tiempo de espera agotado (30s). Intenta nuevamente.");
-        } else if (err.message !== "Hay campos obligatorios sin completar" && err.message !== "Firma no válida") {
-            alert("⚠ Error de conexión con el servidor: " + (err.message || err));
-        }
+        
+        // MOSTRAR ERROR AL USUARIO EN EL RESUMEN
+        if (resumenError) {
+            if (err.name === "AbortError") {
+                resumenError.innerHTML = "❌ <b>Tiempo agotado:</b> Tu internet está muy lento y no se pudo completar el envío. Por favor, intenta de nuevo sin salir de la página.";
+            } else if (err.message.includes("Failed to fetch")) {
+                resumenError.innerHTML = "❌ <b>Falla de conexión:</b> No tienes internet o la señal es muy débil. Revisa tu conexión e intenta enviar de nuevo.";
+            } else {
+                resumenError.textContent = "❌ " + err.message;
+            }
+        } else {
+            // Mensaje amigable (no mostrar "Unexpected token <")
+            resumenError.innerHTML =
+                "❌ <b>No pudimos enviar tu hoja de vida.</b><br/>" +
+                "Revisa tu señal de internet y vuelve a intentar. " +
+                "Si el problema persiste, intenta con WiFi o más tarde.";
+            console.error("Detalle técnico:", err);
+            }
+
     } finally {
         form.dataset.submitting = "0";
-        btnSubmit.disabled = false;
-        btnNext.disabled = false;
-        btnPrev.disabled = currentStep === 0;
-        btnSubmit.innerHTML = originalSubmitHtml;
+        if (btnSubmit) {
+            btnSubmit.disabled = false;
+            btnSubmit.innerHTML = originalSubmitHtml;
+        }
+        if (btnNext) btnNext.disabled = false;
+        if (btnPrev) btnPrev.disabled = (currentStep === 0);
     }
-});
-
+}); // <--- Este cierra el form.addEventListener("submit", ...)
+// --- Función para prellenar datos (VERSIÓN CORREGIDA) ---
 function prellenarDatosPersonales() {
     const tipo = sessionStorage.getItem("tipo_ingreso");
     const id = sessionStorage.getItem("id_ingreso");
-    const form = document.getElementById("hv-form");
+    // Recuperamos el objeto completo del aspirante que guardamos en el login
+    const aspiranteFull = JSON.parse(sessionStorage.getItem("aspirante_data") || "{}");
+    const formHv = document.getElementById("hv-form");
 
+    if (!formHv) return;
+
+    // Función interna para crear campos ocultos (mantiene la integridad del envío)
     function ensureHidden(name, idEl, value) {
         let hid = document.getElementById(idEl);
         if (!hid) {
@@ -1639,18 +1912,23 @@ function prellenarDatosPersonales() {
             hid.type = "hidden";
             hid.id = idEl;
             hid.name = name;
-            form.appendChild(hid);
+            formHv.appendChild(hid);
         }
         hid.value = value || "";
     }
+    
+    // 1. Campos de seguridad obligatorios
+    ensureHidden("tipo_documento_ingreso_hidden", "tipo_doc_hid", tipo);
+    ensureHidden("identificacion_ingreso_hidden", "id_hid", id);
 
+    // 2. Prellenar y bloquear Tipo de Documento
     if (tipo) {
         const selectTipo = document.getElementById("tipo_documento");
         if (selectTipo) {
             selectTipo.value = tipo;
             if (selectTipo.value !== tipo) {
                 const optionExists = Array.from(selectTipo.options).some(opt => opt.value === tipo);
-                if (!optionExists && tipo) {
+                if (!optionExists) {
                     const newOption = document.createElement("option");
                     newOption.value = tipo;
                     newOption.textContent = tipo;
@@ -1663,53 +1941,118 @@ function prellenarDatosPersonales() {
         }
     }
 
+    // 3. Prellenar y bloquear Identificación
     if (id) {
         const inputId = document.getElementById("identificacion");
         if (inputId) {
-            inputId.value = sanitizarNumero(id);
+            inputId.value = typeof sanitizarNumero === "function" ? sanitizarNumero(id) : id;
             inputId.setAttribute("readonly", true);
             ensureHidden("identificacion", "hidden_identificacion", id);
         }
     }
+
+    // 4. NUEVA LÓGICA: Persistencia de datos (Medio de Reclutamiento y más)
+    if (aspiranteFull && Object.keys(aspiranteFull).length > 0) {
+        
+        // === BLOQUE CORREGIDO: Medio de Reclutamiento ===
+        if (aspiranteFull.medio_reclutamiento) {
+            const selectMedio = document.getElementById("medio_reclutamiento");
+            if (selectMedio) {
+                const valorGuardado = aspiranteFull.medio_reclutamiento;
+
+                // 1. Intentar asignar por valor directamente (ej: "pagina_web")
+                selectMedio.value = valorGuardado;
+
+                // 2. Si no funcionó (quedó vacío), buscar por el texto de la opción
+                if (selectMedio.value === "") {
+                    const opciones = Array.from(selectMedio.options);
+                    const opcionCoincidente = opciones.find(opt => 
+                        opt.textContent.trim().toLowerCase() === valorGuardado.trim().toLowerCase()
+                    );
+                    
+                    if (opcionCoincidente) {
+                        selectMedio.value = opcionCoincidente.value;
+                    } else {
+                        // 3. Si no existe ni en valor ni en texto, creamos la opción
+                        const newOpt = document.createElement("option");
+                        newOpt.value = valorGuardado;
+                        newOpt.textContent = valorGuardado;
+                        selectMedio.appendChild(newOpt);
+                        selectMedio.value = valorGuardado;
+                    }
+                }
+                
+                // Disparar el evento change para que se muestre el campo de "Quién recomendó"
+                selectMedio.dispatchEvent(new Event('change'));
+            }
+        }
+
+        // === Recomendador (Sigue igual) ===
+        if (aspiranteFull.recomendador_aspirante) {
+            const inputRecom = document.getElementById("recomendador_aspirante");
+            if (inputRecom) inputRecom.value = aspiranteFull.recomendador_aspirante;
+        }
+
+        // === Otros campos básicos (Sigue igual) ===
+        const camposMapeo = {
+            "primer_nombre": "primer_nombre",
+            "segundo_nombre": "segundo_nombre",
+            "primer_apellido": "primer_apellido",
+            "segundo_apellido": "segundo_apellido",
+            "correo_electronico": "correo_electronico",
+            "telefono": "telefono",
+            "direccion_barrio": "direccion_barrio"
+        };
+
+        Object.keys(camposMapeo).forEach(key => {
+            const input = document.getElementById(key);
+            if (input && aspiranteFull[camposMapeo[key]]) {
+                input.value = aspiranteFull[camposMapeo[key]];
+            }
+        });
+    }
 }
 
-// Modificar showStep original
-const originalShowStep = showStep;
-showStep = function (index) {
+// ==========================================
+// MODIFICAR SHOWSTEP ORIGINAL
+// ==========================================
+// Nota: Solo redefine si showStep ya existe globalmente
+if (typeof showStep !== 'undefined') {
+  const originalShowStep = showStep;
+
+  showStep = function (index) {
     originalShowStep(index);
 
-    if (index === 6) {
-        setTimeout(() => {
-            if (typeof setupSignature === 'function') {
-                setupSignature();
-            }
-        }, 200);
+    // ✅ ÚNICO punto de inicialización para Datos personales (firma + prellenado)
+    // Ajusta este índice a 1 cuando elimines el paso de "Medio de reclutamiento".
+    const STEP_DATOS_PERSONALES = 1;
+
+    if (index === STEP_DATOS_PERSONALES) {
+      // Prellenado/labels
+      setTimeout(() => {
+        if (typeof updateIngresoLabel === 'function') updateIngresoLabel();
+        if (typeof prellenarDatosPersonales === 'function') prellenarDatosPersonales();
+
+        const tipoInput = document.getElementById("tipo_documento");
+        const idInput = document.getElementById("identificacion");
+        if (tipoInput && tipoInput.value) tipoInput.style.borderColor = "var(--border)";
+        if (idInput && idInput.value) idInput.style.borderColor = "var(--border)";
+      }, 100);
+
+      // Firma
+      setTimeout(() => {
+        if (typeof setupSignature === 'function') setupSignature();
+      }, 200);
     }
+  };
+}
 
-    if (index === 2) {
-        setTimeout(() => {
-            updateIngresoLabel();
-            prellenarDatosPersonales();
-
-            const tipoInput = document.getElementById("tipo_documento");
-            const idInput = document.getElementById("identificacion");
-
-            if (tipoInput && tipoInput.value) {
-                tipoInput.style.borderColor = "var(--border)";
-            }
-            if (idInput && idInput.value) {
-                idInput.style.borderColor = "var(--border)";
-            }
-        }, 100);
-    }
-};
-
+// Evento para disparar el prellenado cuando los datos de la API carguen
 document.addEventListener("tipos-cargados", prellenarDatosPersonales);
-
 // Cargar tipos de identificación para Paso 0
 async function cargarTiposPaso0() {
     try {
-        const res = await fetch("https://curriculum-compact-594761951101.europe-west1.run.app/api/config/tipo-identificacion");
+        const res = await fetch(`/api/config/tipo-identificacion`);
         const tipos = await res.json();
 
         const select = document.getElementById("tipo_documento_ingreso");
@@ -1798,28 +2141,44 @@ if (editBtn) {
     });
 }
 
-// DOMContentLoaded
+// 1. ELIMINA cualquier llamada a inicializarSelects() que esté suelta fuera de eventos.
+
+// 2. CONFIGURACIÓN DEL DOM (Correcta y ordenada)
 document.addEventListener("DOMContentLoaded", () => {
-    inicializarSelects();
-    cargarTiposPaso0();
+    // Solo lo llamamos aquí cuando todo el HTML está cargado
+    if (typeof inicializarSelects === "function") {
+        inicializarSelects();
+    }
+    
+    // Si tienes esta función para el Paso 0, verifícala
+    if (typeof cargarTiposPaso0 === "function") {
+        cargarTiposPaso0();
+    }
 
     setTimeout(() => {
-        if (typeof updateIngresoLabel === "function") updateIngresoLabel();
+        if (typeof updateIngresoLabel === "function") {
+            updateIngresoLabel();
+        }
     }, 200);
 });
 
-// ===== FIRMA - VERSIÓN MEJORADA =====
+// 3. FIRMA - VERSIÓN MEJORADA (Asegúrate de que no haya llaves huérfanas antes)
 let canvas, ctx;
 let drawing = false;
 
 window.clearSignature = function () {
+    canvas = document.getElementById("signatureCanvas");
+    ctx = canvas ? canvas.getContext("2d") : null;
+    
     if (!canvas || !ctx) return;
+    
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     sessionStorage.removeItem('firma_temp');
 
-    // Limpiar error de firma
-    document.getElementById("error-firma").textContent = "";
+    // Limpiar error de firma si existe el elemento
+    const errorFirma = document.getElementById("error-firma");
+    if (errorFirma) errorFirma.textContent = "";
 };
 
 function setupSignature() {
@@ -1921,7 +2280,3 @@ function getCoordinates(e) {
         y: Math.max(0, Math.min(canvas.height, (clientY - rect.top) * scaleY))
     };
 }
-
-document.addEventListener("DOMContentLoaded", function () {
-    setTimeout(setupSignature, 500);
-});

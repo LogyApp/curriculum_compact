@@ -1,372 +1,382 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
-
 <head>
-  <meta charset="utf-8" />
+  <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Hoja de Vida – Logyser</title>
+  <title>Hoja de Vida - Logyser</title>
 
   <style>
-    /* CONFIGURACIÓN BASE PARA PUPPETEER */
-    @page {
-      margin: 18mm;
+    :root{
+      --blue:#000B59;
+      --orange:#F55400;
+      --text:#111;
+      --muted:#5f6368;
+      --border:#d9dbe8;
+      --bg:#ffffff;
+      --soft:#f5f7fb;
     }
 
-    body {
-      font-family: "Helvetica Neue", Arial, sans-serif;
-      color: #333;
-      margin: 0;
-      font-size: 12px;
-      line-height: 1.4;
-      background: #ffffff;
+    /* PDF page */
+    @page { size: A4; margin: 12mm; }
+
+    *{ box-sizing:border-box; }
+    body{
+      margin:0;
+      font-family: Arial, Helvetica, sans-serif;
+      color:var(--text);
+      background:var(--bg);
+      font-size:12px;
+      line-height:1.35;
     }
 
-    .container {
-      max-width: 800px;
-      margin: 0 auto;
-      padding: 0;
-      position: relative;
-      /* necesario para shapes posicionadas */
+    .page{
+      width:100%;
     }
 
-    /* ===========================
-     ENCABEZADO
-  ============================*/
-    .header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding-bottom: 12px;
-      border-bottom: 1px solid #e1e4f8;
-      margin-bottom: 16px;
-      position: relative;
-      z-index: 2;
+    /* Header */
+    .header{
+      display:flex;
+      justify-content:space-between;
+      gap:14px;
+      align-items:flex-start;
+      padding-bottom:12px;
+      border-bottom:3px solid var(--orange);
+      margin-bottom:12px;
     }
 
-    .header-left {
-      display: flex;
-      gap: 14px;
-      align-items: center;
+    .header-left{
+      display:flex;
+      gap:12px;
+      align-items:flex-start;
+      min-width:0;
     }
 
-    .photo {
-      width: 130px;
-      height: 130px;
-      border-radius: 50%;
-      object-fit: cover;
-      border: 3px solid #F55400;
+    .photo{
+      width:92px;
+      height:92px;
+      border:1px solid var(--border);
+      border-radius:12px;
+      object-fit:cover;
+      background:#fff;
+      flex:0 0 auto;
     }
 
-    .name {
-      margin: 0;
-      padding: 0;
-      font-size: 26px;
-      font-weight: 800;
-      color: #000b59;
+    .title{
+      min-width:0;
     }
 
-    .meta {
-      font-size: 11px;
-      color: #6b6b6b;
-      margin-top: 4px;
+    .name{
+      margin:0;
+      color:var(--blue);
+      font-size:18px;
+      line-height:1.15;
+      letter-spacing:.2px;
+      word-break:break-word;
     }
 
-    .logo {
-      width: 180px;
-      /* aumentamos ~80% (100 -> 180) */
-      object-fit: contain;
+    .meta{
+      margin-top:6px;
+      color:var(--muted);
+      font-size:11px;
     }
 
-    /* Header shapes (sutiles) */
-    .header-shape {
-      position: absolute;
-      background-color: #000b59;
-      opacity: 0.04;
-      z-index: 1;
-      border-radius: 2px;
+    .meta .line{
+      margin:2px 0;
+      word-break:break-word;
     }
 
-    .header-shape.shape-a {
-      width: 120px;
-      height: 4px;
-      top: 6px;
-      left: 6%;
-      transform: rotate(2deg);
+    .pill{
+      display:inline-block;
+      padding:2px 8px;
+      border-radius:999px;
+      font-size:10px;
+      font-weight:700;
+      background:rgba(245,84,0,.12);
+      color:var(--orange);
+      border:1px solid rgba(245,84,0,.35);
+      vertical-align:middle;
+      margin-right:6px;
     }
 
-    .header-shape.shape-b {
-      width: 28px;
-      height: 28px;
-      top: -6px;
-      right: 14%;
-      transform: rotate(25deg);
-      border-radius: 6px;
+    .id-accent{
+      color:var(--orange);
+      font-weight:800;
+      letter-spacing:.3px;
     }
 
-    /* ===========================
-     SECCIONES Y TITULOS
-  ============================*/
-    h3 {
-      margin: 0;
-      font-size: 14px;
-      font-weight: 700;
-      color: #333;
-      padding-left: 10px;
-      border-left: 5px solid #F55400;
-      margin-bottom: 10px;
+    .logo{
+      height:60px; /* ✅ más grande */
+      width:auto;
+      object-fit:contain;
+      flex:0 0 auto;
     }
 
-    .section {
-      margin-bottom: 20px;
+    /* Layout sections */
+    .grid-2{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:10px;
+      margin-bottom:10px;
     }
 
-    .small {
-      font-size: 11px;
-      color: #4a4a4a;
+    .section{
+      border:1px solid var(--border);
+      background:#fff;
+      border-radius:14px;
+      padding:10px 12px;
+      margin-bottom:10px;
+      page-break-inside: avoid;
     }
 
-    .small strong {
-      color: #333;
+    .section-title{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      margin:0 0 8px;
+      padding-bottom:6px;
+      border-bottom:2px solid rgba(245,84,0,.75);
     }
 
-    .list-item {
-      margin-bottom: 10px;
-      padding: 6px 10px;
-      border-left: 2px solid #e1e4f8;
+    .section-title h3{
+      margin:0;
+      color:var(--blue);
+      font-size:13px;
     }
 
-    .list-item:last-child {
-      margin-bottom: 0;
+    .section-badge{
+      font-size:10px;
+      color:var(--orange);
+      font-weight:800;
+      letter-spacing:.2px;
     }
 
-    .list-item-title {
-      font-size: 12px;
-      font-weight: 700;
-      color: #000b59;
-      margin-bottom: 2px;
+    /* Key/Value rows */
+    .kv{
+      display:grid;
+      grid-template-columns: 160px 1fr;
+      gap:4px 10px;
+      align-items:start;
     }
 
-    .list-item-subtitle {
-      font-size: 11px;
-      font-style: italic;
-      color: #F55400;
-      margin-bottom: 4px;
+    .k{ font-weight:700; color:#333; }
+    .v{ color:#111; word-break:break-word; }
+
+    .hr{
+      height:1px;
+      background:var(--border);
+      margin:10px 0;
     }
 
-    /* ===========================
-     COLUMNAS
-  ============================*/
-    .two-col {
-      display: flex;
-      gap: 20px;
+    /* Lists */
+    .rich{
+      color:#111;
+    }
+    .rich strong{
+      color:var(--blue);
+    }
+    .rich .muted{
+      color:var(--muted);
+    }
+    .rich > div{
+      margin:8px 0;
+      padding-left:8px;
+      border-left:3px solid rgba(245,84,0,.35);
     }
 
-    .left {
-      width: 32%;
+    /* Signature */
+    .signature{
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:6px;
+    }
+    .signature-img{
+      width:260px;
+      max-width:260px;
+      height:auto;
+      display:block;
+      margin:0 auto;
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:6px;
+      background:#fff;
+      object-fit:contain;
+    }
+    .signature-label{
+      font-size:11px;
+      color:var(--muted);
+      text-align:center;
     }
 
-    .right {
-      width: 68%;
-    }
-
-    /* ===========================
-     CUESTIONARIO SEGURIDAD
-  ============================*/
-    .security-section {
-      width: 80%;
-      margin: 20px auto 0 auto;
-      border: 1px solid #e1e4f8;
-      padding: 15px;
-      border-radius: 6px;
-    }
-
-    .security-section h3 {
-      text-align: center;
-      border-left: none;
-      color: #000b59;
-      padding-left: 0;
-      margin-bottom: 12px;
-    }
-
-    .divider {
-      height: 1px;
-      background: #e1e4f8;
-      margin: 18px 0;
-      border-radius: 2px;
-    }
-
-    /* ===========================
-     FOOTER Y ELEMENTOS GRÁFICOS
-  ============================*/
-    .footer-container {
-      position: relative;
-      margin-top: 24px;
-      padding-top: 10px;
-      border-top: 1px solid #e1e4f8;
-    }
-
-    .footer {
-      font-size: 10px;
-      text-align: center;
-      color: #888;
-      position: relative;
-      z-index: 2;
-    }
-
-    .abstract-shape {
-      position: absolute;
-      background-color: #000b59;
-      opacity: 0.05;
-      z-index: 1;
-    }
-
-    .shape-1 {
-      width: 90px;
-      height: 4px;
-      top: 0;
-      left: 20%;
-    }
-
-    .shape-2 {
-      width: 22px;
-      height: 22px;
-      top: -6px;
-      right: 15%;
-      transform: rotate(45deg);
-    }
-
-    .shape-3 {
-      width: 60px;
-      height: 60px;
-      border-radius: 50%;
-      bottom: -10px;
-      left: 6%;
+    /* Footer */
+    .footer{
+      margin-top:10px;
+      text-align:center;
+      color:var(--muted);
+      font-size:10px;
     }
   </style>
 </head>
 
 <body>
-  <div class="container">
+  <div class="page">
 
-    <!-- shapes sutiles en header -->
-    <div class="header-shape shape-a"></div>
-    <div class="header-shape shape-b"></div>
-
+    <!-- HEADER -->
     <div class="header">
       <div class="header-left">
-        <img class="photo" src="{{PHOTO_URL}}" onerror="this.style.display='none'" />
-        <div>
+        <img class="photo" src="{{PHOTO_URL}}" alt="Foto" />
+        <div class="title">
           <h1 class="name">{{NOMBRE_COMPLETO}}</h1>
-          <div class="meta" style="color:#000b59; font-weight:600;">{{TIPO_ID}} {{IDENTIFICACION}}</div>
-          <div class="meta">{{CIUDAD_RESIDENCIA}} • {{TELEFONO}}</div>
-          <div class="meta">{{CORREO}}</div>
+
+          <div class="meta">
+            <div class="line">
+              <span class="pill">{{TIPO_ID}}</span>
+              <span class="id-accent">{{IDENTIFICACION}}</span>
+            </div>
+            <div class="line">{{CIUDAD_RESIDENCIA}} • {{TELEFONO}}</div>
+            <div class="line">{{CORREO}}</div>
+          </div>
         </div>
       </div>
 
-      <img class="logo" src="{{LOGO_URL}}" onerror="this.style.display='none'" />
+      <img class="logo" src="{{LOGO_URL}}" alt="Logo Logyser" />
     </div>
 
-    <div class="two-col">
-
-      <div class="left">
-
-        <div class="section">
-          <h3>Datos Personales</h3>
-          <div class="small">F. Nacimiento: {{FECHA_NACIMIENTO}}</div>
-          <div class="small">F. Expedición: {{FECHA_EXPEDICION}}</div>
-          <div class="small">Estado civil: {{ESTADO_CIVIL}}</div>
-          <div class="small">RH: {{RH}}</div>
-          <div class="small">EPS: {{EPS}}</div>
-          <div class="small">AFP: {{AFP}}</div>
-          <div class="small">Talla camisa: {{CAMISA_TALLA}}</div>
-          <div class="small">Talla pantalón: {{TALLA_PANTALON}}</div>
-          <div class="small">Talla zapatos: {{ZAPATOS_TALLA}}</div>
+    <!-- BLOQUE SUPERIOR (2 columnas) -->
+    <div class="grid-2">
+      <div class="section">
+        <div class="section-title">
+          <h3>Datos personales</h3>
+          <span class="section-badge">LOGYSER</span>
         </div>
 
-        <div class="section">
+        <div class="kv">
+          <div class="k">Fecha nacimiento:</div><div class="v">{{FECHA_NACIMIENTO}}</div>
+          <div class="k">Fecha expedición:</div><div class="v">{{FECHA_EXPEDICION}}</div>
+          <div class="k">Estado civil:</div><div class="v">{{ESTADO_CIVIL}}</div>
+          <div class="k">RH:</div><div class="v">{{RH}}</div>
+          <div class="k">EPS:</div><div class="v">{{EPS}}</div>
+          <div class="k">AFP:</div><div class="v">{{AFP}}</div>
+          <div class="k">Talla camisa:</div><div class="v">{{CAMISA_TALLA}}</div>
+          <div class="k">Talla pantalón:</div><div class="v">{{TALLA_PANTALON}}</div>
+          <div class="k">Talla zapatos:</div><div class="v">{{ZAPATOS_TALLA}}</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">
           <h3>Contacto</h3>
-          <div class="small">{{CONTACTO_EMERGENCIA}}</div>
-          <div class="small">{{DIRECCION}}</div>
+          <span class="section-badge" style="color:var(--orange)">EMERGENCIA</span>
         </div>
 
-        <div class="section">
+        <div class="kv">
+          <div class="k">Contacto emergencia:</div><div class="v">{{CONTACTO_EMERGENCIA}}</div>
+          <div class="k">Dirección:</div><div class="v">{{DIRECCION}}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- EXPERIENCIA -->
+    <div class="section">
+      <div class="section-title">
+        <h3>Experiencia</h3>
+        <span class="section-badge">LABORAL</span>
+      </div>
+      <div class="rich">
+        {{EXPERIENCIA_LIST}}
+      </div>
+    </div>
+
+    <!-- EDUCACIÓN -->
+    <div class="section">
+      <div class="section-title">
+        <h3>Educación</h3>
+        <span class="section-badge">FORMACIÓN</span>
+      </div>
+      <div class="rich">
+        {{EDUCACION_LIST}}
+      </div>
+    </div>
+
+    <!-- FAMILIARES + REFERENCIAS -->
+    <div class="grid-2">
+      <div class="section">
+        <div class="section-title">
           <h3>Familiares</h3>
+          <span class="section-badge">NÚCLEO</span>
+        </div>
+        <div class="rich">
           {{FAMILIARES_LIST}}
         </div>
-
       </div>
 
-      <div class="right">
-
-        <div class="section">
-          <h3>Experiencia</h3>
-          {{EXPERIENCIA_LIST}}
-        </div>
-
-        <div class="divider"></div>
-
-        <div class="section">
-          <h3>Educación</h3>
-          {{EDUCACION_LIST}}
-        </div>
-
-        <div class="divider"></div>
-
-        <div class="section">
+      <div class="section">
+        <div class="section-title">
           <h3>Referencias</h3>
+          <span class="section-badge">CONTACTOS</span>
+        </div>
+        <div class="rich">
           {{REFERENCIAS_LIST}}
         </div>
-
-        <div class="divider"></div>
-
-        <div class="section">
-          <h3>Metas</h3>
-          <!-- METAS ya vendrá como HTML con items enumerados -->
-          {{METAS}}
-        </div>
-
       </div>
     </div>
 
-    <div class="security-section">
-      <h3>Cuestionario de Seguridad</h3>
-
-      <div class="small" style="margin-top: 6px;"><strong>Llamados de atención:</strong> {{SEG_LLAMADOS}}</div>
-      <div class="small" style="margin-bottom: 8px;">{{SEG_DETALLE_LLAMADOS}}</div>
-
-      <div class="small"><strong>Accidente laboral:</strong> {{SEG_ACCIDENTE}}</div>
-      <div class="small" style="margin-bottom: 8px;">{{SEG_DETALLE_ACCIDENTE}}</div>
-
-      <div class="small"><strong>Enfermedad importante:</strong> {{SEG_ENFERMEDAD}}</div>
-      <div class="small" style="margin-bottom: 8px;">{{SEG_DETALLE_ENFERMEDAD}}</div>
-
-      <div class="small"><strong>Consume alcohol:</strong> {{SEG_ALCOHOL}}</div>
-      <div class="small" style="margin-bottom: 8px;"><strong>Frecuencia:</strong> {{SEG_FRECUENCIA}}</div>
-
-      <div class="small"><strong>Familiar en empresa:</strong> {{SEG_FAMILIAR}}</div>
-      <div class="small" style="margin-bottom: 8px;">{{SEG_DETALLE_FAMILIAR}}</div>
-
-      <div class="small"><strong>Información falsa:</strong> {{SEG_INFO_FALSA}}</div>
-      <div class="small" style="margin-bottom: 8px;"><strong>Acepta polígrafo:</strong> {{SEG_POLIGRAFO}}</div>
-
-      <div class="small"><strong>Fortalezas:</strong><br>{{SEG_FORTALEZAS}}</div>
-      <div class="small"><strong>Aspectos a mejorar:</strong><br>{{SEG_MEJORAR}}</div>
-      <div class="small"><strong>Resolución de problemas:</strong><br>{{SEG_RESOLUCION}}</div>
-
-      <div class="small" style="margin-top: 8px;"><strong>Observaciones:</strong><br>{{SEG_OBSERVACIONES}}</div>
-
+    <!-- METAS -->
+    <div class="section">
+      <div class="section-title">
+        <h3>Metas</h3>
+        <span class="section-badge">CORTO • MEDIANO • LARGO</span>
+      </div>
+      <div class="rich">
+        {{METAS}}
+      </div>
     </div>
 
-    <div class="footer-container">
-      <div class="abstract-shape shape-1"></div>
-      <div class="abstract-shape shape-2"></div>
-      <div class="abstract-shape shape-3"></div>
-      <div class="footer">
-        Logyser • Hoja de vida generada el {{FECHA_GENERACION}}
+    <!-- SEGURIDAD -->
+    <div class="section">
+      <div class="section-title">
+        <h3>Cuestionario de Seguridad</h3>
+        <span class="section-badge">PERSONAL</span>
       </div>
+
+      <div class="kv">
+        <div class="k">Llamados de atención:</div><div class="v">{{SEG_LLAMADOS}}</div>
+        <div class="k">Detalle:</div><div class="v">{{SEG_DETALLE_LLAMADOS}}</div>
+
+        <div class="k">Accidente laboral:</div><div class="v">{{SEG_ACCIDENTE}}</div>
+        <div class="k">Detalle:</div><div class="v">{{SEG_DETALLE_ACCIDENTE}}</div>
+
+        <div class="k">Enfermedad importante:</div><div class="v">{{SEG_ENFERMEDAD}}</div>
+        <div class="k">Detalle:</div><div class="v">{{SEG_DETALLE_ENFERMEDAD}}</div>
+
+        <div class="k">Consume alcohol:</div><div class="v">{{SEG_ALCOHOL}}</div>
+        <div class="k">Frecuencia:</div><div class="v">{{SEG_FRECUENCIA}}</div>
+
+        <div class="k">Familiar en empresa:</div><div class="v">{{SEG_FAMILIAR}}</div>
+        <div class="k">Detalle:</div><div class="v">{{SEG_DETALLE_FAMILIAR}}</div>
+
+        <div class="k">Información falsa:</div><div class="v">{{SEG_INFO_FALSA}}</div>
+        <div class="k">Acepta polígrafo:</div><div class="v">{{SEG_POLIGRAFO}}</div>
+
+        <div class="k">Fortalezas:</div><div class="v">{{SEG_FORTALEZAS}}</div>
+        <div class="k">Aspectos a mejorar:</div><div class="v">{{SEG_MEJORAR}}</div>
+        <div class="k">Resolución problemas:</div><div class="v">{{SEG_RESOLUCION}}</div>
+        <div class="k">Observaciones:</div><div class="v">{{SEG_OBSERVACIONES}}</div>
+      </div>
+    </div>
+
+    <!-- FIRMA (al final, centrada) -->
+    <div class="section">
+      <div class="signature">
+        <img class="signature-img" src="{{FIRMA_URL}}" alt="Firma" />
+        <div class="signature-label">Firma</div>
+      </div>
+    </div>
+
+    <div class="footer">
+      Logyser • Hoja de vida generada el {{FECHA_GENERACION}}
     </div>
 
   </div>
 </body>
-
 </html>

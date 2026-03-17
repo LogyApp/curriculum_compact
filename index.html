@@ -32,34 +32,30 @@
         </div>
         <div class="step" data-step="1">
           <div class="step-number">2</div>
-          <div class="step-label">Medio de reclutamiento</div>
+          <div class="step-label">Datos personales</div>
         </div>
         <div class="step" data-step="2">
           <div class="step-number">3</div>
-          <div class="step-label">Datos personales</div>
+          <div class="step-label">Educación</div>
         </div>
         <div class="step" data-step="3">
           <div class="step-number">4</div>
-          <div class="step-label">Educación</div>
+          <div class="step-label">Experiencia</div>
         </div>
         <div class="step" data-step="4">
           <div class="step-number">5</div>
-          <div class="step-label">Experiencia</div>
+          <div class="step-label">Familia / Referencias</div>
         </div>
         <div class="step" data-step="5">
           <div class="step-number">6</div>
-          <div class="step-label">Familia / Referencias</div>
+          <div class="step-label">Emergencia / Metas</div>
         </div>
         <div class="step" data-step="6">
           <div class="step-number">7</div>
-          <div class="step-label">Emergencia / Metas</div>
+          <div class="step-label">Cuestionario</div>
         </div>
         <div class="step" data-step="7">
           <div class="step-number">8</div>
-          <div class="step-label">Cuestionario</div>
-        </div>
-        <div class="step" data-step="8">
-          <div class="step-number">9</div>
           <div class="step-label">Revisión</div>
         </div>
       </div>
@@ -95,48 +91,49 @@
           </div>
 
           <div id="ingreso-msg" class="error-message" style="margin-top:10px;"></div>
-        </div>
-
-        <!-- PASO 1: MEDIO DE RECLUTAMIENTO -->
-        <div class="form-step" data-step="1">
-          <div class="step-title">Paso 1: ¿Cómo llegaste a la oferta?</div>
-          <div class="grid">
-            <div class="field">
-              <label for="medio_reclutamiento">
-                Medio de reclutamiento <span class="required">*</span>
-              </label>
-              <select id="medio_reclutamiento" name="medio_reclutamiento" data-required="true">
-                <option value="">Selecciona una opción</option>
-                <option value="proceso_seleccion">Proceso Selección</option>
-                <option value="pagina_web">Página web Logyser</option>
-                <option value="plataforma_empleo">Plataforma de empleo</option>
-                <option value="redes_sociales">Redes sociales</option>
-                <option value="recomendado">Recomendado</option>
-                <option value="empleado_interno">Empleado interno</option>
-                <option value="agencia">Agencia de empleo</option>
-                <option value="otro">Otro</option>
-              </select>
-              <div class="help-text">
-                Esta información nos ayuda a mejorar nuestros canales de reclutamiento.
+                    <!-- Medio de reclutamiento (antes era PASO 1, ahora vive en INGRESO) -->
+          <div style="margin-top:18px;">
+            <div class="step-title">¿Cómo llegaste a la oferta?</div>
+            <div class="grid">
+              <div class="field">
+                <label for="medio_reclutamiento">
+                  Medio de reclutamiento <span class="required">*</span>
+                </label>
+                <select id="medio_reclutamiento" name="medio_reclutamiento" data-required="true">
+                  <option value="">Selecciona una opción</option>
+                  <option value="proceso_seleccion">Proceso Selección</option>
+                  <option value="pagina_web">Página web Logyser</option>
+                  <option value="plataforma_empleo">Plataforma de empleo</option>
+                  <option value="redes_sociales">Redes sociales</option>
+                  <option value="recomendado">Recomendado</option>
+                  <option value="empleado_interno">Empleado interno</option>
+                  <option value="agencia">Agencia de empleo</option>
+                  <option value="otro">Otro</option>
+                </select>
+                <div class="help-text">
+                  Esta información nos ayuda a mejorar nuestros canales de reclutamiento.
+                </div>
+                <div class="field-error" id="error-medio_reclutamiento"></div>
               </div>
-              <div class="field-error" id="error-medio_reclutamiento"></div>
+
+              <div class="field hidden" id="campo-recomendador">
+                <label for="recomendador_aspirante">
+                  ¿Quién te recomendó? / Nombre del contacto
+                </label>
+                <input type="text" id="recomendador_aspirante" name="recomendador_aspirante"
+                  placeholder="Nombre de la persona o entidad" />
+                <div class="field-error" id="error-recomendador_aspirante"></div>
+              </div>
             </div>
 
-            <div class="field hidden" id="campo-recomendador">
-              <label for="recomendador_aspirante">
-                ¿Quién te recomendó? / Nombre del contacto
-              </label>
-              <input type="text" id="recomendador_aspirante" name="recomendador_aspirante"
-                placeholder="Nombre de la persona o entidad" />
-              <div class="field-error" id="error-recomendador_aspirante"></div>
-            </div>
+            <!-- Error del paso 0 (si quieres mostrar error general en ingreso) -->
+            <div id="error-step-0" class="error-message"></div>
           </div>
-          <div id="error-step-1" class="error-message"></div>
         </div>
 
         <!-- PASO 2: DATOS PERSONALES -->
-        <div class="form-step" data-step="2">
-          <div class="step-title">Paso 2: Datos personales</div>
+        <div class="form-step" data-step="1">
+          <div class="step-title">Datos personales</div>
           <div class="grid">
             <div class="field">
               <label for="tipo_documento">
@@ -163,7 +160,7 @@
 
             <!-- Foto de perfil -->
             <div class="field" id="photo-field" style="margin-top:10px;">
-              <label>Foto de perfil <span class="required">*</span></label>
+              <label>Foto de perfil</label>
               <div style="display:flex; align-items:center; gap:12px; margin-top:6px;">
                 <img id="photo-img" src="" alt="Foto de perfil"
                   style="width:96px; height:96px; object-fit:cover; border-radius:8px; border:1px solid var(--border); display:none;" />
@@ -256,11 +253,6 @@
               </label>
               <select id="estado_civil" name="estado_civil" data-required="true">
                 <option value="">Selecciona una opción</option>
-                <option value="soltero">Soltero(a)</option>
-                <option value="casado">Casado(a)</option>
-                <option value="union_libre">Unión libre</option>
-                <option value="divorciado">Divorciado(a)</option>
-                <option value="viudo">Viudo(a)</option>
               </select>
               <div class="field-error" id="error-estado_civil"></div>
             </div>
@@ -380,8 +372,8 @@
         </div>
 
         <!-- PASO 3: EDUCACIÓN -->
-        <div class="form-step" data-step="3">
-          <div class="step-title">Paso 3: Educación</div>
+        <div class="form-step" data-step="2">
+          <div class="step-title">Educación</div>
           <p class="help-text">
             Registra tus estudios realizados. Puedes agregar todos los que necesites.
           </p>
@@ -396,8 +388,8 @@
         </div>
 
         <!-- PASO 4: EXPERIENCIA -->
-        <div class="form-step" data-step="4">
-          <div class="step-title">Paso 4: Experiencia laboral</div>
+        <div class="form-step" data-step="3">
+          <div class="step-title">Experiencia laboral</div>
           <p class="help-text">
             Registra tus empleos anteriores. Puedes agregar tantos como necesites.
           </p>
@@ -412,8 +404,8 @@
         </div>
 
         <!-- PASO 5: FAMILIA + REFERENCIAS -->
-        <div class="form-step" data-step="5">
-          <div class="step-title">Paso 5: Familiares y referencias</div>
+        <div class="form-step" data-step="4">
+          <div class="step-title">Familiares y referencias</div>
           <p class="help-text">
             Registra tu núcleo familiar y las referencias que podamos contactar.
           </p>
@@ -512,8 +504,8 @@
         </div>
 
         <!-- PASO 6: EMERGENCIA + METAS -->
-        <div class="form-step" data-step="6">
-          <div class="step-title">Paso 6: Contacto de emergencia y metas</div>
+        <div class="form-step" data-step="5">
+          <div class="step-title">Contacto de emergencia y metas</div>
           <p class="help-text">
             Indica a quién debemos contactar en caso de emergencia y cuéntanos tus metas.
           </p>
@@ -574,8 +566,8 @@
         </div>
 
         <!-- PASO 7: CUESTIONARIO PERSONAL -->
-        <div class="form-step" data-step="7">
-          <div class="step-title">Paso 7: Cuestionario personal y seguridad</div>
+        <div class="form-step" data-step="6">
+          <div class="step-title">Cuestionario personal y seguridad</div>
           <p class="help-text">
             Responde con sinceridad. Esta información es confidencial y se usa solo para el proceso.
           </p>
@@ -707,8 +699,8 @@
         </div>
 
         <!-- PASO 8: PREVISUALIZACIÓN -->
-        <div class="form-step" data-step="8">
-          <div class="step-title">Paso 8: Revisión y envío</div>
+        <div class="form-step" data-step="7">
+          <div class="step-title">Revisión y envío</div>
           <p class="help-text">
             Verifica un resumen de la información que registraste. Puedes volver a pasos anteriores si quieres corregir
             algo antes de enviar.
@@ -725,6 +717,7 @@
             <button type="button" class="btn btn-primary" id="btn-next">
               Siguiente ➝
             </button>
+            <div id="resumen-errores" style="color: var(--error); margin-bottom: 10px; font-size: 0.9rem; font-weight: 600;"></div>
             <button type="submit" class="btn btn-primary hidden" id="btn-submit">
               Enviar hoja de vida ✅
             </button>
@@ -740,8 +733,7 @@
     <div class="delete-modal-card" role="document">
       <p id="deletePhotoTitle" style="font-weight:600;">¿Está seguro de eliminar esta foto?</p>
       <p style="margin-top:4px; color:#666; font-size:0.95rem;">
-        Esta acción eliminará la foto de la vista. Si quieres también eliminarla del servidor debes usar la opción de
-        eliminar del perfil.
+        Esta acción eliminará la foto del perfil y del servidor.
       </p>
       <div class="delete-modal-actions" style="margin-top:12px;">
         <button id="deleteModalCancel" class="btn btn-secondary">Cancelar</button>

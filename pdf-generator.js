@@ -78,7 +78,7 @@ export async function generateAndUploadPdf({
     }
 
     if (!idHv) {
-      throw new Error("❌ 'idHv' es requerido para generar el nombre del archivo en el formato {identificación}.HDV.{id}");
+      throw new Error("❌ 'idHv' es requerido para generar el nombre del archivo en el formato {identificación}.HV.{id}");
     }
 
     console.log(`🏢 Bucket recibido: ${bucketName}`);
@@ -88,15 +88,15 @@ export async function generateAndUploadPdf({
       try {
         console.log(`🧹 Buscando PDFs antiguos para: ${identificacion}`);
 
-        // NUEVO: Buscar archivos con el patrón {identificacion}.HDV.*.pdf
+        // NUEVO: Buscar archivos con el patrón {identificacion}.HV.*.pdf
         const [files] = await bucket.getFiles();
 
         // Filtrar archivos que coincidan con el patrón
-        const pattern = new RegExp(`^${identificacion}\\.HDV\\.\\d+\\.pdf$`);
+        const pattern = new RegExp(`^${identificacion}\\.HV\\.\\d+\\.pdf$`);
         const oldPdfFiles = files.filter(file => pattern.test(file.name));
 
         if (oldPdfFiles.length > 0) {
-          console.log(`📁 Encontrados ${oldPdfFiles.length} PDFs antiguos con el patrón ${identificacion}.HDV.*.pdf`);
+          console.log(`📁 Encontrados ${oldPdfFiles.length} PDFs antiguos con el patrón ${identificacion}.HV.*.pdf`);
 
           // Eliminar en paralelo
           await Promise.all(
@@ -153,8 +153,8 @@ export async function generateAndUploadPdf({
     console.log(`✅ PDF generado: ${pdfBuffer.length} bytes`);
 
     // ========== NOMBRE DEL ARCHIVO (NUEVO FORMATO) ==========
-    // Formato: {identificación}.HDV.{id en la base de datos}.pdf
-    const destName = `${identificacion}/${identificacion}.HDV.${idHv}.pdf`;
+    // Formato: {identificación}.HV.{id en la base de datos}.pdf
+    const destName = `${identificacion}/${identificacion}.HV.${idHv}.pdf`;
     console.log(`📤 Subiendo a GCS con nuevo formato: ${destName}`);
 
     // ========== SUBIR A GCS ==========

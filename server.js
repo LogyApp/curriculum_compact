@@ -1,11 +1,6 @@
-// ==========================================================
-//  Backend de configuración HV - Logyser
-//  Node.js + Express + MySQL (mysql2/promise)
-//  Listo para Cloud Run
-// ==========================================================
+import fs from 'fs';
 import path from 'path';
 import { generateAndUploadPdf } from "./pdf-generator.js";
-import fs from 'fs'; // <-- AÑADE ESTO
 
 import multer from "multer";
 import { Storage } from "@google-cloud/storage";
@@ -18,9 +13,13 @@ import dotenv from "dotenv";
 import { fileURLToPath } from "url";
 
 const app = express();
-app.use(cors());
-app.use(express.json());
-app.use(express.Router())
+app.use(cors({
+  origin: '*', // Permite peticiones desde cualquier origen (incluyendo tu localhost)
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type']
+}));
+app.use(express.json({ limit: '15mb' }));
+app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 dotenv.config();
 
 import correoAspiranteRoutes from "./router/correoAspirante.js";
@@ -28,7 +27,6 @@ import correoAspiranteRoutes from "./router/correoAspirante.js";
 // === Servir frontend ===
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
 // ==========================================
 //  CONEXIÓN A MYSQL
 // ==========================================
@@ -51,8 +49,9 @@ async function query(sql, params = []) {
 }
 
 // Helper: escape HTML para textos que iremos inyectando en la plantilla
+// ✅ Helper: escape HTML para textos que iremos inyectando en la plantilla
 function escapeHtml(str = "") {
-  return String(str || "")
+  return String(str ?? "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -73,66 +72,41 @@ const isCloudRun = process.env.K_SERVICE || process.env.K_REVISION;
 let storageGcs;
 let GCS_BUCKET;
 let bucket = null;
+let bucketFirmas = null; // Declarada globalmente
 
 try {
   if (isCloudRun) {
-    // En Cloud Run - usar credenciales automáticas
     console.log("Usando credenciales automáticas de Cloud Run");
     storageGcs = new Storage();
-    GCS_BUCKET = process.env.GCS_BUCKET || "hojas_vida_logyser";
   } else {
-    // En local - usar archivo de credenciales
     console.log("Modo desarrollo local");
-
-    // PRIMERO intentar con variable de entorno
-    if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    const keyFilename = path.join(__dirname, 'json-key.json');
+    if (fs.existsSync(keyFilename)) {
+      console.log(`Usando credenciales desde archivo: ${keyFilename}`);
+      storageGcs = new Storage({ keyFilename: keyFilename });
+    } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
       console.log("Usando credenciales de variable de entorno");
       storageGcs = new Storage();
+    } else {
+      console.warn("⚠️ No se encontraron credenciales de Google Cloud");
     }
-    // SEGUNDO intentar con archivo json-key.json
-    else {
-      const keyFilename = path.join(__dirname, 'json-key.json');
-      if (fs.existsSync(keyFilename)) {
-        console.log(`Usando credenciales desde archivo: ${keyFilename}`);
-        storageGcs = new Storage({
-          keyFilename: keyFilename
-        });
-      } else {
-        console.warn("⚠️  Archivo json-key.json no encontrado y GOOGLE_APPLICATION_CREDENTIALS no definida");
-        console.warn("⚠️  Las funciones de subida de archivos no estarán disponibles en desarrollo local");
-        console.warn("⚠️  Para desarrollo, crea json-key.json o define la variable de entorno");
-      }
-    }
-
-    GCS_BUCKET = process.env.GCS_BUCKET || "hojas_vida_logyser";
   }
 
-  // Solo crear bucket si tenemos storage configurado
-  if (storageGcs) {
-    bucket = storageGcs.bucket(GCS_BUCKET);
-    console.log(`✅ Bucket configurado: ${GCS_BUCKET}`);
+  GCS_BUCKET = process.env.GCS_BUCKET || "hojas_vida_logyser";
 
-    // Verificar que el bucket existe
-    try {
-      const [exists] = await bucket.exists();
-      if (exists) {
-        console.log(`✅ Bucket ${GCS_BUCKET} accesible`);
-      } else {
-        console.error(`❌ Bucket ${GCS_BUCKET} no existe o no es accesible`);
-        console.error(`   Verifica que el bucket exista y el service account tenga permisos`);
-        bucket = null; // No podemos usar un bucket que no existe
-      }
-    } catch (bucketError) {
-      console.error(`❌ Error verificando bucket ${GCS_BUCKET}:`, bucketError.message);
-      bucket = null;
-    }
-  } else {
-    console.warn("⚠️  Storage GCS no configurado - funcionalidades de archivo deshabilitadas");
+  if (storageGcs) {
+    // 1. Inicializamos los objetos de bucket SIEMPRE
+    bucket = storageGcs.bucket(GCS_BUCKET);
+    bucketFirmas = storageGcs.bucket('firmas-images'); 
+    
+    console.log(`✅ Objetos de bucket creados: ${GCS_BUCKET} y firmas-images`);
+
+   // ✅ NO uses await aquí (top-level). Solo loguea y sigue.
+    console.log(`ℹ️ Usando bucket configurado: ${GCS_BUCKET}. Se intentará operar sin verificación previa.`);
   }
 
 } catch (configError) {
   console.error("❌ Error configurando Google Cloud Storage:", configError.message);
-  bucket = null;
 }
 
 console.log(`🌍 Entorno: ${isCloudRun ? 'Cloud Run' : 'Local'}`);
@@ -462,6 +436,23 @@ app.get("/api/config/pension", async (req, res) => {
   }
 });
 
+// ==========================================
+//  ENDPOINT: Estado Civil
+// ==========================================
+app.get("/api/config/estado-civil", async (req, res) => {
+  try {
+    const rows = await query(`
+      SELECT \`Condición\` AS estado_civil
+      FROM Config_Estado_Civil
+      ORDER BY \`Condición\`
+    `);
+
+    res.json(rows);
+  } catch (error) {
+    console.error("Error estado civil:", error);
+    res.status(500).json({ error: "Error cargando estado civil" });
+  }
+});
 
 app.use(express.static(__dirname));
 
@@ -496,7 +487,7 @@ app.get("/api/aspirante", async (req, res) => {
     );
 
     const experiencia = await query(
-      `SELECT empresa, cargo, tiempo_laborado, salario, motivo_retiro, funciones FROM Dynamic_hv_experiencia_laboral WHERE id_aspirante = ? ORDER BY fecha_registro`,
+      `SELECT empresa, cargo, ano_experiencia, tiempo_laborado, salario, motivo_retiro, funciones FROM Dynamic_hv_experiencia_laboral WHERE id_aspirante = ? ORDER BY fecha_registro`,
       [id]
     );
 
@@ -561,7 +552,9 @@ app.post("/api/hv/upload-photo", upload.single("photo"), async (req, res) => {
     // Normalizar nombre de archivo y construir objeto con prefijo identificacion/
     const safeName = file.originalname.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_\-\.]/g, "");
     const destName = `${identificacion}/${Date.now()}_${safeName}`;
-
+    if (!bucket) {
+      return res.status(500).json({ ok: false, error: "Storage no disponible (bucket no configurado)" });
+    }
     const blob = bucket.file(destName);
     const stream = blob.createWriteStream({
       resumable: false,
@@ -651,6 +644,70 @@ async function verificarSiEsNuevo(identificacion) {
   }
 }
 
+// Endpoint: eliminar foto de perfil (GCS + BD)
+// DELETE /api/hv/foto/:identificacion
+app.delete("/api/hv/foto/:identificacion", async (req, res) => {
+  const identificacion = (req.params.identificacion || "").trim();
+  if (!identificacion) {
+    return res.status(400).json({ ok: false, error: "Falta identificación en la URL" });
+  }
+
+  try {
+    // 1) Consultar ruta actual
+    const [rows] = await pool.query(
+      `SELECT foto_gcs_path FROM Dynamic_hv_aspirante WHERE identificacion = ? LIMIT 1`,
+      [identificacion]
+    );
+
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({ ok: false, error: "Aspirante no encontrado" });
+    }
+
+    const fotoPath = rows[0].foto_gcs_path;
+
+    // 2) Intentar borrar de GCS (si hay path y bucket)
+    let gcsDeleted = false;
+    let gcsError = null;
+
+    if (fotoPath && bucket) {
+      try {
+        const file = bucket.file(fotoPath);
+        const [exists] = await file.exists();
+        if (exists) {
+          await file.delete();
+          gcsDeleted = true;
+        }
+      } catch (err) {
+        gcsError = err?.message || String(err);
+        console.warn("⚠️ No se pudo borrar foto en GCS:", gcsError);
+        // No abortamos: igual limpiamos BD para que no quede “amarrada”
+      }
+    }
+
+    // 3) Limpiar BD
+    await pool.query(
+      `UPDATE Dynamic_hv_aspirante 
+       SET foto_gcs_path = NULL, foto_public_url = NULL, fecha_actualizacion = NOW()
+       WHERE identificacion = ?`,
+      [identificacion]
+    );
+
+    return res.json({
+      ok: true,
+      message: "Foto eliminada (BD limpia).",
+      gcsDeleted,
+      gcsError
+    });
+  } catch (err) {
+    console.error("❌ Error eliminando foto:", err);
+    return res.status(500).json({
+      ok: false,
+      error: "Error eliminando foto",
+      details: err?.message || String(err)
+    });
+  }
+});
+
 app.post("/api/hv/registrar", async (req, res) => {
   console.log("📝 HV Registrar endpoint hit");
 
@@ -736,7 +793,7 @@ app.post("/api/hv/registrar", async (req, res) => {
     let pdf_public_url_anterior = null;
 
     if (identificacion) {
-      const [existingRows] = await conn.query(
+      const [existingRows] = await pool.query(
         `SELECT id_aspirante, pdf_gcs_path, pdf_public_url FROM Dynamic_hv_aspirante WHERE identificacion = ? LIMIT 1`,
         [identificacion]
       );
@@ -794,8 +851,15 @@ app.post("/api/hv/registrar", async (req, res) => {
     const ahora = new Date();
 
     // Variables para foto (vienen en datosAspirante, no en la desestructuración)
-    const foto_gcs_path = datosAspirante.foto_gcs_path || null;
-    const foto_public_url = datosAspirante.foto_public_url || null;
+    let foto_gcs_path = datosAspirante.foto_gcs_path || null;
+    let foto_public_url = datosAspirante.foto_public_url || null;
+
+    // ✅ Defensa: no guardar base64 en BD
+    if (foto_public_url && String(foto_public_url).startsWith("data:image/")) {
+      console.warn("⚠️ foto_public_url venía como base64 (data:image). Se ignorará para evitar ER_DATA_TOO_LONG.");
+      foto_public_url = null;
+      foto_gcs_path = foto_gcs_path && String(foto_gcs_path).startsWith("data:") ? null : foto_gcs_path;
+    }
 
     if (idAspirante) {
       // --- Caso: ya existe -> hacemos UPDATE y reinsertamos hijos ---
@@ -847,8 +911,8 @@ app.post("/api/hv/registrar", async (req, res) => {
         fecha_expedicion || null,
         estado_civil || null,
         direccion_barrio || null,
-        departamento_residencia || null,  // Se mapea al campo 'departamento'
-        ciudad_residencia || null,        // Se mapea al campo 'ciudad'
+        departamento_residencia || null, 
+        ciudad_residencia || null, 
         telefono || null,
         correo_electronico || null,
         eps || null,
@@ -857,8 +921,9 @@ app.post("/api/hv/registrar", async (req, res) => {
         talla_pantalon || null,
         camisa_talla || null,
         zapatos_talla || null,
-        foto_gcs_path,
-        foto_public_url,
+        // Si no viene foto nueva, intentamos mantener la anterior (si la tenemos) o enviamos la que llegue
+        foto_gcs_path || datosAspirante.foto_gcs_path || null,
+        foto_public_url || datosAspirante.foto_public_url || null,
         origen_registro,
         medio_reclutamiento || null,
         recomendador_aspirante || null,
@@ -1021,17 +1086,19 @@ app.post("/api/hv/registrar", async (req, res) => {
             id_aspirante,
             empresa,
             cargo,
+            ano_experiencia,
             tiempo_laborado,
             salario,
             motivo_retiro,
             funciones
           )
-          VALUES (?,?,?,?,?,?,?)
+          VALUES (?,?,?,?,?,?,?,?)
           `,
           [
             idAspirante,
             exp.empresa || null,
             exp.cargo || null,
+            exp.ano_experiencia || null,
             exp.tiempo_laborado || null,
             exp.salario || null,
             exp.motivo_retiro || null,
@@ -1141,7 +1208,14 @@ app.post("/api/hv/registrar", async (req, res) => {
     }
 
     // 5.6) Metas personales (Dynamic_hv_metas_personales)
-    if (metas_personales && (metas_personales.corto_plazo || metas_personales.mediano_plazo || metas_personales.largo_plazo)) {
+    // Validamos que exista el objeto y que al menos una de las metas tenga contenido
+    const hasMetas = metas_personales && (
+      metas_personales.meta_corto_plazo || metas_personales.corto_plazo ||
+      metas_personales.meta_mediano_plazo || metas_personales.mediano_plazo ||
+      metas_personales.meta_largo_plazo || metas_personales.largo_plazo
+    );
+
+    if (hasMetas) {
       await conn.query(
         `
         INSERT INTO Dynamic_hv_metas_personales (
@@ -1154,14 +1228,14 @@ app.post("/api/hv/registrar", async (req, res) => {
         `,
         [
           idAspirante,
-          metas_personales.corto_plazo || null,
-          metas_personales.mediano_plazo || null,
-          metas_personales.largo_plazo || null
+          metas_personales.meta_corto_plazo || metas_personales.corto_plazo || null,
+          metas_personales.meta_mediano_plazo || metas_personales.mediano_plazo || null,
+          metas_personales.meta_largo_plazo || metas_personales.largo_plazo || null
         ]
       );
-      console.log(`✅ Metas personales: registradas`);
+      console.log(`✅ Metas personales: registradas correctamente`);
     } else {
-      console.log(`ℹ️ Metas personales: Sin registro`);
+      console.log(`ℹ️ Metas personales: Sin registro detectado`);
     }
 
     // 5.7) Seguridad / cuestionario personal (Dynamic_hv_seguridad)
@@ -1215,7 +1289,7 @@ app.post("/api/hv/registrar", async (req, res) => {
     } else {
       console.log(`ℹ️ Seguridad: Sin registro`);
     }
-
+   
     // ========== 6. CONSTRUIR DATOS PARA EL PDF ==========
     console.log(`📊 Preparando datos para PDF...`);
 
@@ -1231,16 +1305,40 @@ app.post("/api/hv/registrar", async (req, res) => {
 
     const EXPERIENCIA_LIST = toHtmlList(
       experiencia_laboral,
-      ex => `${escapeHtml(ex.empresa || "")} — ${escapeHtml(ex.cargo || "")}<br><span class="small">${escapeHtml(ex.tiempo_laborado || "")} • ${escapeHtml(ex.funciones || "")}</span>`
+      ex => {
+        const anoIni = ex.ano_experiencia ? escapeHtml(String(ex.ano_experiencia)) : "-";
+        const tiempo = escapeHtml(ex.tiempo_laborado || "-");
+        const salario = escapeHtml(ex.salario || "-");
+        const motivo = escapeHtml(ex.motivo_retiro || "-");
+        const funciones = escapeHtml(ex.funciones || "-");
+
+        return `
+          <div>
+            <strong>${escapeHtml(ex.empresa || "-")}</strong> — ${escapeHtml(ex.cargo || "-")}<br>
+            <span class="muted">Año inicio: ${anoIni} • Tiempo: ${tiempo} • Salario: ${salario}</span><br>
+            <span class="muted">Motivo retiro: ${motivo}</span><br>
+            ${funciones}
+          </div>
+        `;
+      }
     );
 
     const REFERENCIAS_LIST = toHtmlList(
       referencias,
       r => {
-        if ((r.tipo_referencia || "").toLowerCase().includes("laboral")) {
-          return `${escapeHtml(r.empresa || "")} — ${escapeHtml(r.jefe_inmediato || "")} (${escapeHtml(r.telefono || "")})`;
+        const tipoRaw = (r.tipo_referencia || "").toLowerCase();
+        const tipo =
+          tipoRaw.includes("laboral") ? "Referencia laboral" :
+          tipoRaw.includes("familiar") ? "Referencia familiar" :
+          tipoRaw.includes("personal") ? "Referencia personal" :
+          "Referencia";
+
+        if (tipoRaw.includes("laboral")) {
+          return `<div><strong>${escapeHtml(tipo)}:</strong> ${escapeHtml(r.empresa || "-")} — ${escapeHtml(r.jefe_inmediato || "-")} (${escapeHtml(r.telefono || "-")})</div>`;
         }
-        return `${escapeHtml(r.nombre_completo || "")} — ${escapeHtml(r.telefono || "")} ${escapeHtml(r.ocupacion || "") ? "• " + escapeHtml(r.ocupacion) : ""}`;
+
+        const ocup = r.ocupacion ? ` • ${escapeHtml(r.ocupacion)}` : "";
+        return `<div><strong>${escapeHtml(tipo)}:</strong> ${escapeHtml(r.nombre_completo || "-")} — ${escapeHtml(r.telefono || "-")}${ocup}</div>`;
       }
     );
 
@@ -1255,21 +1353,19 @@ app.post("/api/hv/registrar", async (req, res) => {
 
     // Construir METAS_HTML enumerada
     const metasObj = metas_personales || {};
-    const metasItems = [];
-    const m1 = metasObj.meta_corto_plazo || metasObj.corto_plazo || "";
-    const m2 = metasObj.meta_mediano_plazo || metasObj.mediano_plazo || "";
-    const m3 = metasObj.meta_largo_plazo || metasObj.largo_plazo || "";
-    if (m1 && m1.trim()) metasItems.push(m1.trim());
-    if (m2 && m2.trim()) metasItems.push(m2.trim());
-    if (m3 && m3.trim()) metasItems.push(m3.trim());
+    const mCorto = (metasObj.meta_corto_plazo || metasObj.corto_plazo || "").trim();
+    const mMediano = (metasObj.meta_mediano_plazo || metasObj.mediano_plazo || "").trim();
+    const mLargo = (metasObj.meta_largo_plazo || metasObj.largo_plazo || "").trim();
 
-    let METAS_HTML;
-    if (metasItems.length === 0) {
-      METAS_HTML = "<div class='small'>No registrado</div>";
-    } else {
-      METAS_HTML = metasItems.map((txt, i) =>
-        `<div class="list-item"><strong>${i + 1}.</strong> ${escapeHtml(txt)}</div>`
-      ).join("");
+    let METAS_HTML = "No registrado";
+    const metasFilas = [];
+
+    if (mCorto) metasFilas.push(`<div><strong>Corto plazo:</strong> ${escapeHtml(mCorto)}</div>`);
+    if (mMediano) metasFilas.push(`<div><strong>Mediano plazo:</strong> ${escapeHtml(mMediano)}</div>`);
+    if (mLargo) metasFilas.push(`<div><strong>Largo plazo:</strong> ${escapeHtml(mLargo)}</div>`);
+
+    if (metasFilas.length > 0) {
+      METAS_HTML = metasFilas.join("");
     }
 
     function siNo(valor) {
@@ -1295,7 +1391,7 @@ app.post("/api/hv/registrar", async (req, res) => {
       CAMISA_TALLA: escapeHtml(camisa_talla || ""),
       TALLA_PANTALON: escapeHtml(talla_pantalon || ""),
       ZAPATOS_TALLA: escapeHtml(zapatos_talla || ""),
-      PHOTO_URL: foto_public_url || "",
+      PHOTO_URL: foto_public_url || "data:image/gif;base64,R0lGODlhAQABAAAAACw=",
       EDUCACION_LIST,
       EXPERIENCIA_LIST,
       REFERENCIAS_LIST,
@@ -1327,56 +1423,49 @@ app.post("/api/hv/registrar", async (req, res) => {
     transactionCommitted = true;
     console.log(`✅ Transacción de BD completada para: ${identificacion}`);
 
-    // ========== SUBIR FIRMA ==========
-    console.log('=== VERIFICACIÓN FIRMA ===');
-    console.log('firma_base64 (variable):', firma_base64 ? 'EXISTE' : 'NO EXISTE');
-    console.log('datosAspirante.firma_base64:', datosAspirante.firma_base64 ? 'EXISTE' : 'NO EXISTE');
+    // ========== 8. SUBIR FIRMA AL NUEVO BUCKET (firmas-images) ==========
+    console.log('=== PROCESANDO FIRMA ===');
     let firmaUrl = null;
     const signatureData = firma_base64;
 
-    if (signatureData && bucket && idAspirante) {
+    if (signatureData && bucketFirmas && idAspirante) {
       try {
-        console.log(`🖊️ Subiendo firma...`);
-        console.log('📏 Longitud del base64:', signatureData.length);
-        console.log('📝 Primeros 50 caracteres:', signatureData.substring(0, 50));
+        console.log(`🖊️ Iniciando subida de firma para ID: ${identificacion}`);
 
-        // Extraer base64
+        // Extraer datos base64 puros
         let base64Data = signatureData;
         if (signatureData.includes('base64,')) {
           base64Data = signatureData.split('base64,')[1];
-          console.log('📏 Longitud después de limpiar:', base64Data.length);
         }
 
         const signatureBuffer = Buffer.from(base64Data, 'base64');
-        console.log('📦 Tamaño del buffer:', signatureBuffer.length, 'bytes');
 
-        // Si el buffer es muy pequeño (menos de 100 bytes), probablemente está vacío
-        if (signatureBuffer.length < 100) {
-          console.warn('⚠️ La firma parece estar vacía o es muy pequeña');
-        }
+        // Nueva ruta solicitada: identificacion/firma.png
+        const signatureName = `${identificacion}/firma.png`;
+        const fileFirma = bucketFirmas.file(signatureName);
 
-        const signatureName = `${identificacion}/${identificacion}.FIRMA.${idAspirante}.png`;
+        console.log(`✍️ Subiendo a bucket firmas-images: ${signatureName}`);
 
-        // Subir a GCS
-        const file = bucket.file(signatureName);
-        await file.save(signatureBuffer, {
-          metadata: { contentType: 'image/png' }
+        await fileFirma.save(signatureBuffer, {
+          metadata: { contentType: 'image/png' },
+          resumable: false
         });
 
-        firmaUrl = `https://storage.googleapis.com/${GCS_BUCKET}/${signatureName}`;
+        // URL pública en el nuevo bucket
+        firmaUrl = `https://storage.googleapis.com/firmas-images/${signatureName}`;
 
-        // Guardar URL en BD
-        await conn.query(
+        // Guardar la nueva URL en la BD
+        await pool.query(
           `UPDATE Dynamic_hv_aspirante SET firma_url = ? WHERE id_aspirante = ?`,
           [firmaUrl, idAspirante]
         );
 
-        // Agregar al PDF
+        // Actualizar el objeto para que el generador de PDF use la firma del nuevo bucket
         aspiranteData.FIRMA_URL = firmaUrl;
 
-        console.log(`✅ Firma subida: ${firmaUrl}`);
+        console.log(`✅ Firma guardada en nuevo bucket: ${firmaUrl}`);
       } catch (error) {
-        console.error(`❌ Error con firma: ${error.message}`);
+        console.error(`❌ Error procesando firma en firmas-images: ${error.message}`);
       }
     }
 
@@ -1403,6 +1492,8 @@ app.post("/api/hv/registrar", async (req, res) => {
           deleteOldFiles: true
         });
 
+
+
         // Timeout de 60 segundos
         const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('TIMEOUT_GENERANDO_PDF')), 60000)
@@ -1416,13 +1507,26 @@ app.post("/api/hv/registrar", async (req, res) => {
         console.log(`   🔗 URL: ${pdfUrl}`);
 
         // Actualizar BD con la nueva URL del PDF
-        await conn.query(
+        await pool.query(
           `UPDATE Dynamic_hv_aspirante SET 
             pdf_gcs_path = ?,
             pdf_public_url = ?
           WHERE identificacion = ?`,
           [pdfResult.destName, pdfUrl, identificacion]
         );
+        // ==========================================================
+        // NUEVO: Registro en Dynamic_hv_documentos (Config 30)
+        // ==========================================================
+        console.log(`📄 Registrando en Dynamic_hv_documentos para: ${identificacion}`);
+        
+        await pool.query(
+          `INSERT INTO Dynamic_hv_documentos 
+            (id_aspirante, id_config_doc, gcs_path, estado, fuente, observaciones)
+          VALUES (?, ?, ?, ?, ?, NULL)`,
+          [idAspirante, 30, pdfResult.destName, 'Aprobado', 'Sistema']
+        );
+        console.log(`✅ Registro de documento HV completado exitosamente.`);
+        // ==========================================================
 
       } catch (pdfGenError) {
         console.error(`❌ Error generando PDF: ${pdfGenError.message}`);
@@ -1589,8 +1693,6 @@ async function deleteURLFromDB(req, res) {
 app.delete('/api/hv/pdf/:id', deleteURLFromDB);
 
 app.use("/api/correo", correoAspiranteRoutes);
-
-app.use(express.static(__dirname));
 
 app.get('*', (req, res, next) => {
   // Si es una ruta de API, continúa
