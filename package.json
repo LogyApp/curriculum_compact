@@ -9,6 +9,7 @@
     "dev": "nodemon server.js"
   },
   "dependencies": {
+    "@google-cloud/documentai": "^9.6.0",
     "@google-cloud/storage": "^7.17.3",
     "cors": "^2.8.5",
     "dotenv": "^17.3.1",

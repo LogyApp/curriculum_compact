@@ -1,4 +1,13 @@
-node_modules
-json-key.json
-gcs-key.json
+# Dependencias
+node_modules/
+
+# Variables de entorno y secretos (CRÍTICO)
 .env
+google-auth.json
+json-key.json
+*.pem
+
+# Logs y temporales
+npm-debug.log*
+.DS_Store
+dist/

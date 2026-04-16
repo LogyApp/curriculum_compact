@@ -8,7 +8,7 @@ const API_URL =
 // ==============================
 async function fetchWithTimeout(url, options = {}) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10000); // 10 segundos timeout
+  const timeout = setTimeout(() => controller.abort(), 20000); // 20 segundos para evitar fallos en cold starts
 
   try {
     const res = await fetch(url, {

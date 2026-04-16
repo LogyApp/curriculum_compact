@@ -155,7 +155,7 @@ function validateStep(stepIndex) {
         // Caso especial para la firma en el último paso
        if (stepIndex === 1) {
         const firma = sessionStorage.getItem('firma_temp');
-        if (!firma || firma.length <= 1000) {
+        if (!firma || firma.length <= 200) {
             valid = false;
             const errorFirma = document.getElementById("error-firma");
             if (errorFirma) errorFirma.textContent = "Debes dibujar tu firma antes de continuar.";
@@ -250,10 +250,8 @@ async function validarIngreso() {
     const id = sanitizarNumero(identificacionIngreso.value);
 
     try {
-    // Definimos la URL base para esta consulta específica de validación
-    const VALIDAR_URL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-        ? "http://localhost:8080/api/aspirante"
-        : "https://curriculum-compact-594761951101.europe-west1.run.app/api/aspirante";
+    // Usamos la URL base dinámica para evitar errores de despliegue
+    const VALIDAR_URL = `${API_URL_BASE}/aspirante`;
 
     const resp = await fetch(`${VALIDAR_URL}?identificacion=${id}`);
 
@@ -1704,7 +1702,10 @@ form.addEventListener("submit", async (e) => {
 
     // Limpiar resumen de errores previo
     const resumenError = document.getElementById("resumen-errores");
-    if (resumenError) resumenError.textContent = "";
+    if (resumenError) {
+        resumenError.textContent = "";
+        resumenError.style.display = "none";
+    }
 
     if (form.dataset.submitting === "1") return;
     form.dataset.submitting = "1";
@@ -1727,10 +1728,10 @@ form.addEventListener("submit", async (e) => {
         }
         // 2. Validar firma (Crucial para estabilidad en móviles)
         const firmaGuardada = sessionStorage.getItem('firma_temp');
-        if (!firmaGuardada || firmaGuardada.length <= 1000) {
+        if (!firmaGuardada || firmaGuardada.length <= 200) {
             const errorFirma = document.getElementById("error-firma");
-        if (errorFirma) errorFirma.textContent = "Debes dibujar tu firma antes de enviar.";
-            throw new Error("La firma no se detecta o es muy corta. Por favor, firma de nuevo.");
+            if (errorFirma) errorFirma.textContent = "Debes dibujar tu firma antes de enviar.";
+            throw new Error("La firma no está registrada o es muy corta. Por favor, vuelve al paso 2 y dibuja tu firma.");
         }
 
         // 3. Preparar payload (Tu lógica original intacta)
@@ -1865,7 +1866,7 @@ form.addEventListener("submit", async (e) => {
 
     } catch (err) {
         console.error("Error en submit HV:", err);
-        
+
         // MOSTRAR ERROR AL USUARIO EN EL RESUMEN
         if (resumenError) {
             if (err.name === "AbortError") {
@@ -1873,16 +1874,11 @@ form.addEventListener("submit", async (e) => {
             } else if (err.message.includes("Failed to fetch")) {
                 resumenError.innerHTML = "❌ <b>Falla de conexión:</b> No tienes internet o la señal es muy débil. Revisa tu conexión e intenta enviar de nuevo.";
             } else {
-                resumenError.textContent = "❌ " + err.message;
+                resumenError.innerHTML = "❌ " + err.message;
             }
-        } else {
-            // Mensaje amigable (no mostrar "Unexpected token <")
-            resumenError.innerHTML =
-                "❌ <b>No pudimos enviar tu hoja de vida.</b><br/>" +
-                "Revisa tu señal de internet y vuelve a intentar. " +
-                "Si el problema persiste, intenta con WiFi o más tarde.";
-            console.error("Detalle técnico:", err);
-            }
+            resumenError.style.display = "block";
+            resumenError.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
 
     } finally {
         form.dataset.submitting = "0";

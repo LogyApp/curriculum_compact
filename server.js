@@ -1,3 +1,6 @@
+import dotenv from "dotenv";
+dotenv.config(); // Cargar variables de entorno antes que cualquier otra cosa
+
 import fs from 'fs';
 import path from 'path';
 import { generateAndUploadPdf } from "./pdf-generator.js";
@@ -8,7 +11,6 @@ import { Storage } from "@google-cloud/storage";
 import express from "express";
 import cors from "cors";
 import mysql from "mysql2/promise";
-import dotenv from "dotenv";
 
 import { fileURLToPath } from "url";
 
@@ -20,7 +22,6 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
-dotenv.config();
 
 import correoAspiranteRoutes from "./router/correoAspirante.js";
 
@@ -36,7 +37,7 @@ const pool = mysql.createPool({
   user: process.env.DB_USER,
   password: process.env.DB_PASS,
   database: process.env.DATABASE,
-  port: parseInt(process.env.DBPORT),
+  port: parseInt(process.env.DB_PORT || process.env.DBPORT || "3306"),
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,

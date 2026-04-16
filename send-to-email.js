@@ -14,8 +14,8 @@ async function enviarCorreoAspirante({
     port: 587,
     secure: false,
     auth: {
-      user: 'logyser.noreply@gmail.com',
-      pass: 'iroa eygz smjw wluh'
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS
     }
   });
 

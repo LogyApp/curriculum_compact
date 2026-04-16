@@ -710,14 +710,14 @@
 
         <!-- BOTONES -->
         <div class="buttons">
-          <button type="button" class="btn btn-secondary" id="btn-prev" disabled>
-            ⬅ Anterior
-          </button>
+          <div id="resumen-errores" style="display:none; color: var(--error); background: #fff3f3; border: 1px solid var(--error); border-radius: 6px; padding: 10px 14px; margin-bottom: 12px; font-size: 0.95rem; font-weight: 600; width: 100%;"></div>
           <div style="display:flex; gap:8px;">
+            <button type="button" class="btn btn-secondary" id="btn-prev" disabled>
+              ⬅ Anterior
+            </button>
             <button type="button" class="btn btn-primary" id="btn-next">
               Siguiente ➝
             </button>
-            <div id="resumen-errores" style="color: var(--error); margin-bottom: 10px; font-size: 0.9rem; font-weight: 600;"></div>
             <button type="submit" class="btn btn-primary hidden" id="btn-submit">
               Enviar hoja de vida ✅
             </button>
