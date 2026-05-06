@@ -1707,19 +1707,34 @@ form.addEventListener("submit", async (e) => {
         resumenError.style.display = "none";
     }
 
-    if (form.dataset.submitting === "1") return;
-    form.dataset.submitting = "1";
+    // Si ya hay un envío en curso, mostrar mensaje en lugar de silencio
+    if (form.dataset.submitting === "1") {
+        if (resumenError) {
+            resumenError.innerHTML = "⏳ Tu hoja de vida ya se está enviando. Por favor espera unos segundos y no cierres la ventana.";
+            resumenError.style.display = "block";
+            resumenError.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+        return;
+    }
 
-    const originalSubmitHtml = btnSubmit.innerHTML;
-    btnSubmit.disabled = true;
-    btnNext.disabled = true;
-    btnPrev.disabled = true;
-    btnSubmit.innerHTML = "Enviando... No cierre la ventana";
+    // Guardar texto original del botón antes del try para que finally siempre lo tenga
+    let originalSubmitHtml = btnSubmit ? btnSubmit.innerHTML : "Enviar hoja de vida ✅";
 
     try {
-        // 1. Validar campos obligatorios finales
-        if (!validateStep(currentStep)) {
-            throw new Error("Hay campos obligatorios sin completar en este paso.");
+        // Establecer flag y bloquear botones dentro del try para que finally siempre los restaure
+        form.dataset.submitting = "1";
+        if (btnSubmit) {
+            btnSubmit.disabled = true;
+            btnSubmit.innerHTML = "Enviando... No cierre la ventana";
+        }
+        if (btnNext) btnNext.disabled = true;
+        if (btnPrev) btnPrev.disabled = true;
+
+        // 1. Solo permitir envío desde el último paso (evita submit por tecla Enter en pasos anteriores)
+        if (currentStep !== steps.length - 1) {
+            form.dataset.submitting = "0";
+            showStep(steps.length - 1);
+            return;
         }
 
         // ✅ Foto opcional: solo bloquear si hay foto seleccionada y aún NO terminó la subida
@@ -1890,6 +1905,18 @@ form.addEventListener("submit", async (e) => {
         if (btnPrev) btnPrev.disabled = (currentStep === 0);
     }
 }); // <--- Este cierra el form.addEventListener("submit", ...)
+
+// Seguridad: resetear flag si el usuario regresa a la página con caché del navegador
+window.addEventListener("pageshow", () => {
+    if (form) form.dataset.submitting = "0";
+});
+
+// Bloquear submit accidental por tecla Enter en campos de texto (excepto en el último paso)
+form.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && e.target.tagName !== "TEXTAREA" && currentStep !== steps.length - 1) {
+        e.preventDefault();
+    }
+});
 // --- Función para prellenar datos (VERSIÓN CORREGIDA) ---
 function prellenarDatosPersonales() {
     const tipo = sessionStorage.getItem("tipo_ingreso");

@@ -98,9 +98,10 @@ try {
   if (storageGcs) {
     // 1. Inicializamos los objetos de bucket SIEMPRE
     bucket = storageGcs.bucket(GCS_BUCKET);
-    bucketFirmas = storageGcs.bucket('firmas-images'); 
+    const GCS_BUCKET_FIRMAS = process.env.GCS_BUCKET_FIRMAS || 'firmas-images';
+    bucketFirmas = storageGcs.bucket(GCS_BUCKET_FIRMAS); 
     
-    console.log(`✅ Objetos de bucket creados: ${GCS_BUCKET} y firmas-images`);
+    console.log(`✅ Objetos de bucket creados: ${GCS_BUCKET} y ${GCS_BUCKET_FIRMAS}`);
 
    // ✅ NO uses await aquí (top-level). Solo loguea y sigue.
     console.log(`ℹ️ Usando bucket configurado: ${GCS_BUCKET}. Se intentará operar sin verificación previa.`);
@@ -1453,7 +1454,7 @@ app.post("/api/hv/registrar", async (req, res) => {
         });
 
         // URL pública en el nuevo bucket
-        firmaUrl = `https://storage.googleapis.com/firmas-images/${signatureName}`;
+        firmaUrl = `https://storage.googleapis.com/${bucketFirmas.name}/${signatureName}`;
 
         // Guardar la nueva URL en la BD
         await pool.query(
