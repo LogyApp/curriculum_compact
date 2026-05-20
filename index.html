@@ -3,747 +3,1055 @@
 
 <head>
   <meta charset="UTF-8" />
-  <title>Registro Hoja de Vida - Logyser</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-  <link rel="stylesheet" href="./index.css">
-
+  <title>Registro Hoja de Vida — Logyser</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="./css/styles.css">
 </head>
 
 <body>
+
   <div class="page">
-    <div class="card">
-      <div class="header">
-        <img src="https://storage.googleapis.com/encuesta_satisfaccion/logo.png" alt="Logo Logyser" />
-        <div>
+    <div class="app-card">
+
+      <!-- ── HEADER (visible solo en el formulario) ───────────────────── -->
+      <header id="app-header" class="app-header" style="display:none;">
+        <img class="app-header-logo" src="https://storage.googleapis.com/encuesta_satisfaccion/logo.png"
+          alt="Logyser" />
+        <div class="app-header-divider"></div>
+        <div class="app-header-text">
           <h1>Registro de Hoja de Vida</h1>
-          <p class="subtitle">
-            Diligencia tu información en pocos pasos. Si ya te has registrado antes,
-            podrás actualizar tus datos con tu número de identificación.
-          </p>
+          <p>Diligencia tu información en pocos pasos. Si ya tienes registro, carga tus datos con tu número de
+            identificación.</p>
         </div>
-      </div>
+      </header>
 
-      <!-- STEPPER -->
-      <div class="stepper" id="stepper">
-        <div class="step active" data-step="0">
-          <div class="step-number">1</div>
-          <div class="step-label">Ingreso</div>
-        </div>
-        <div class="step" data-step="1">
-          <div class="step-number">2</div>
-          <div class="step-label">Datos personales</div>
-        </div>
-        <div class="step" data-step="2">
-          <div class="step-number">3</div>
-          <div class="step-label">Educación</div>
-        </div>
-        <div class="step" data-step="3">
-          <div class="step-number">4</div>
-          <div class="step-label">Experiencia</div>
-        </div>
-        <div class="step" data-step="4">
-          <div class="step-number">5</div>
-          <div class="step-label">Familia / Referencias</div>
-        </div>
-        <div class="step" data-step="5">
-          <div class="step-number">6</div>
-          <div class="step-label">Emergencia / Metas</div>
-        </div>
-        <div class="step" data-step="6">
-          <div class="step-number">7</div>
-          <div class="step-label">Cuestionario</div>
-        </div>
-        <div class="step" data-step="7">
-          <div class="step-number">8</div>
-          <div class="step-label">Revisión</div>
-        </div>
-      </div>
+      <!-- ── VERIFICATION GATE ─────────────────────────────────────────── -->
+      <div id="verif-gate">
 
-      <!-- FORM -->
-      <form id="hv-form">
-        <!-- PASO 0: INGRESO -->
-        <div class="form-step active" data-step="0">
-          <div class="step-title">Ingreso al formulario</div>
-          <p class="help-text">
-            Ingresa tu tipo y número de identificación. Si ya tienes información registrada,
-            la cargaremos automáticamente para que solo actualices lo que haga falta.
-          </p>
+        <!-- Cabecera de marca del gate — misma estructura que app-header -->
+        <div class="verif-gate-brand">
+          <img class="verif-gate-logo" src="https://storage.googleapis.com/encuesta_satisfaccion/logo.png"
+            alt="Logyser" />
+          <div class="verif-gate-brand-divider"></div>
+          <div class="verif-gate-brand-text">
+            <div class="verif-gate-brand-title">Registro de Hoja de Vida</div>
+            <div class="verif-gate-brand-sub">Proceso de selección de personal — Logyser S.A.S</div>
+          </div>
+        </div>
 
-          <div class="grid">
-            <div class="field">
-              <label for="tipo_documento_ingreso">
-                Tipo de identificación <span class="required">*</span>
-              </label>
-              <select id="tipo_documento_ingreso" data-required="true">
+        <!-- Contenido del gate -->
+        <div class="verif-gate-body">
+
+          <div class="verif-gate-lock">
+            <div class="verif-gate-lock-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+            </div>
+            <div>
+              <div class="verif-gate-title">Verificación de identidad</div>
+              <p class="verif-gate-desc">
+                Ingresa los datos de tu documento para comenzar. Si ya tienes un registro previo, cargaremos tu
+                información automáticamente.
+              </p>
+            </div>
+          </div>
+
+          <div class="verif-gate-fields">
+            <div class="fg">
+              <label class="flbl" for="tipo_documento_ingreso">Tipo de identificación <span
+                  class="required">*</span></label>
+              <select id="tipo_documento_ingreso" class="fi">
                 <option value="">Selecciona...</option>
               </select>
               <div class="field-error" id="error-tipo_documento_ingreso"></div>
             </div>
-
-            <div class="field">
-              <label for="identificacion_ingreso">
-                Número de identificación <span class="required">*</span>
-              </label>
-              <input type="text" id="identificacion_ingreso" data-required="true" />
+            <div class="fg">
+              <label class="flbl" for="identificacion_ingreso">Número de identificación <span
+                  class="required">*</span></label>
+              <input type="text" id="identificacion_ingreso" class="fi" data-num="true" inputmode="numeric"
+                placeholder="Ej. 1020304050" />
               <div class="field-error" id="error-identificacion_ingreso"></div>
             </div>
+            <div class="fg">
+              <label class="flbl" for="fecha_expedicion_ingreso">Fecha de expedición del documento <span
+                  class="required">*</span></label>
+              <input type="date" id="fecha_expedicion_ingreso" class="fi" />
+              <div class="field-error" id="error-fecha_expedicion_ingreso"></div>
+            </div>
           </div>
 
-          <div id="ingreso-msg" class="error-message" style="margin-top:10px;"></div>
-                    <!-- Medio de reclutamiento (antes era PASO 1, ahora vive en INGRESO) -->
-          <div style="margin-top:18px;">
-            <div class="step-title">¿Cómo llegaste a la oferta?</div>
-            <div class="grid">
-              <div class="field">
-                <label for="medio_reclutamiento">
-                  Medio de reclutamiento <span class="required">*</span>
-                </label>
-                <select id="medio_reclutamiento" name="medio_reclutamiento" data-required="true">
-                  <option value="">Selecciona una opción</option>
-                  <option value="proceso_seleccion">Proceso Selección</option>
-                  <option value="pagina_web">Página web Logyser</option>
-                  <option value="plataforma_empleo">Plataforma de empleo</option>
-                  <option value="redes_sociales">Redes sociales</option>
-                  <option value="recomendado">Recomendado</option>
-                  <option value="empleado_interno">Empleado interno</option>
-                  <option value="agencia">Agencia de empleo</option>
-                  <option value="otro">Otro</option>
-                </select>
-                <div class="help-text">
-                  Esta información nos ayuda a mejorar nuestros canales de reclutamiento.
+          <!-- Términos y condiciones -->
+          <div class="verif-gate-terms">
+            <label class="terms-label">
+              <input type="checkbox" id="acepta_privacidad" class="terms-checkbox" />
+              <span class="terms-text">
+                He leído y acepto la
+                <button type="button" id="btn-ver-politica" class="link-btn">
+                  Política de Tratamiento de Datos Personales
+                </button>
+                de Logyser S.A.S, en cumplimiento de la Ley Estatutaria 1581 de 2012 y el Decreto 1377 de 2013.
+              </span>
+            </label>
+            <div class="field-error" id="error-acepta_privacidad"></div>
+          </div>
+
+          <div id="gate-msg" style="display:none; width:100%;"></div>
+
+          <button type="button" id="btn-gate-continue" class="btn btn-primary btn-lg" style="width:100%;">
+            Verificar y continuar
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="5" y1="12" x2="19" y2="12" />
+              <polyline points="12 5 19 12 12 19" />
+            </svg>
+          </button>
+
+          <p class="verif-gate-footer">
+            Sus datos están protegidos bajo la Ley 1581 de 2012 — Régimen de Protección de Datos Personales de Colombia.
+          </p>
+
+        </div><!-- /.verif-gate-body -->
+      </div><!-- /#verif-gate -->
+
+      <!-- ── FORM AREA (hidden until gate passes) ──────────────────────── -->
+      <div id="form-area" style="display:none;">
+
+        <!-- ── STEPPER ────────────────────────────────────────────────────── -->
+        <nav class="stepper" aria-label="Pasos del formulario">
+          <div class="step active" data-step="0">
+            <div class="step-number">1</div>
+            <div class="step-label">Ingreso</div>
+          </div>
+          <div class="step" data-step="1">
+            <div class="step-number">2</div>
+            <div class="step-label">Datos personales</div>
+          </div>
+          <div class="step" data-step="2">
+            <div class="step-number">3</div>
+            <div class="step-label">Educación</div>
+          </div>
+          <div class="step" data-step="3">
+            <div class="step-number">4</div>
+            <div class="step-label">Experiencia</div>
+          </div>
+          <div class="step" data-step="4">
+            <div class="step-number">5</div>
+            <div class="step-label">Familia / Refs.</div>
+          </div>
+          <div class="step" data-step="5">
+            <div class="step-number">6</div>
+            <div class="step-label">Emergencia</div>
+          </div>
+          <div class="step" data-step="6">
+            <div class="step-number">7</div>
+            <div class="step-label">Cuestionario</div>
+          </div>
+          <div class="step" data-step="7">
+            <div class="step-number">8</div>
+            <div class="step-label">Revisión</div>
+          </div>
+        </nav>
+
+        <!-- ── FORM ───────────────────────────────────────────────────────── -->
+        <form id="hv-form">
+
+          <!-- ── PASO 0: INGRESO ──────────────────────────────────────────── -->
+          <div class="form-step active" data-step="0">
+            <div class="step-header">
+              <h2>Canal de reclutamiento</h2>
+              <p>Indica cómo te enteraste de esta oferta de trabajo. Tu identificación ya ha sido verificada.</p>
+            </div>
+
+            <!-- Confirmed identity bar (populated by JS after gate) -->
+            <div id="step0-identity-bar" class="gate-confirmed-bar">
+              <div class="gate-confirmed-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                  <polyline points="22 4 12 14.01 9 11.01" />
+                </svg>
+              </div>
+              <div class="gate-confirmed-text">
+                <span class="gate-confirmed-label">Identidad verificada</span>
+                <span id="gate-confirmed-desc" class="gate-confirmed-desc"></span>
+              </div>
+            </div>
+
+            <!-- Hidden fields — values set by gate JS -->
+            <input type="hidden" name="tipo_documento_ingreso">
+            <input type="hidden" name="identificacion_ingreso">
+            <input type="hidden" name="fecha_expedicion_ingreso">
+
+            <div class="form-section">
+              <div class="form-section-hd">Canal de reclutamiento</div>
+              <div class="form-section-body">
+
+                <!-- Returning user: read-only display (shown by JS) -->
+                <div id="medio-readonly-display" class="ident-locked-card" style="display:none;">
+                  <div class="ident-locked-rows">
+                    <div class="ident-locked-row">
+                      <span class="ident-locked-label">Canal de reclutamiento</span>
+                      <span id="medio-display-val" class="ident-locked-val">—</span>
+                    </div>
+                    <div class="ident-locked-row" id="medio-recomendador-row" style="display:none;">
+                      <span class="ident-locked-label">Recomendado por</span>
+                      <span id="medio-recomendador-val" class="ident-locked-val">—</span>
+                    </div>
+                  </div>
                 </div>
-                <div class="field-error" id="error-medio_reclutamiento"></div>
-              </div>
 
-              <div class="field hidden" id="campo-recomendador">
-                <label for="recomendador_aspirante">
-                  ¿Quién te recomendó? / Nombre del contacto
-                </label>
-                <input type="text" id="recomendador_aspirante" name="recomendador_aspirante"
-                  placeholder="Nombre de la persona o entidad" />
-                <div class="field-error" id="error-recomendador_aspirante"></div>
+                <!-- New user: editable select (hidden for returning users) -->
+                <div id="medio-select-wrap">
+                  <div class="grid">
+                    <div class="fg">
+                      <label class="flbl" for="medio_reclutamiento">¿Cómo llegaste a la oferta? <span
+                          class="required">*</span></label>
+                      <select id="medio_reclutamiento" name="medio_reclutamiento" class="fi" data-required="true">
+                        <option value="">Selecciona una opción</option>
+                        <option value="proceso_seleccion">Proceso de selección</option>
+                        <option value="pagina_web">Página web Logyser</option>
+                        <option value="plataforma_empleo">Plataforma de empleo</option>
+                        <option value="redes_sociales">Redes sociales</option>
+                        <option value="recomendado">Recomendado</option>
+                        <option value="empleado_interno">Empleado interno</option>
+                        <option value="agencia">Agencia de empleo</option>
+                        <option value="otro">Otro</option>
+                      </select>
+                      <div class="field-error" id="error-medio_reclutamiento"></div>
+                    </div>
+                    <div class="fg hidden" id="campo-recomendador">
+                      <label class="flbl" for="recomendador_aspirante">Nombre de quien te recomendó</label>
+                      <input type="text" id="recomendador_aspirante" name="recomendador_aspirante" class="fi"
+                        placeholder="Nombre de la persona o entidad" />
+                      <div class="field-error" id="error-recomendador_aspirante"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div id="error-step-0" class="error-message" style="display:none; margin-top:10px;"></div>
               </div>
             </div>
-
-            <!-- Error del paso 0 (si quieres mostrar error general en ingreso) -->
-            <div id="error-step-0" class="error-message"></div>
           </div>
-        </div>
 
-        <!-- PASO 2: DATOS PERSONALES -->
-        <div class="form-step" data-step="1">
-          <div class="step-title">Datos personales</div>
-          <div class="grid">
-            <div class="field">
-              <label for="tipo_documento">
-                Tipo de identificación <span class="required">*</span>
-              </label>
-              <select id="tipo_documento" name="tipo_documento" data-required="true">
-                <option value="">Selecciona...</option>
-              </select>
-              <div class="field-error" id="error-tipo_documento"></div>
+          <!-- ── PASO 1: DATOS PERSONALES ─────────────────────────────────── -->
+          <div class="form-step" data-step="1">
+            <div class="step-header">
+              <h2>Datos personales</h2>
+              <p>Información básica de identificación, contacto y seguridad social.</p>
             </div>
 
-            <div class="field">
-              <label for="identificacion">
-                Número de identificación <span class="required">*</span>
-              </label>
-              <input type="text" id="identificacion" name="identificacion" data-required="true" />
-              <div class="field-error" id="error-identificacion"></div>
-            </div>
+            <!-- Identificación — solo lectura, viene del gate -->
+            <div class="form-section">
+              <div class="form-section-hd">Identificación</div>
+              <div class="form-section-body">
 
-            <div id="ingreso-summary" class="field-help" style="margin-top:8px; display:none;">
-              Ingreso: <strong id="ingreso-summary-text"></strong>
-              <button type="button" class="btn btn-secondary" id="edit-ingreso" style="margin-left:8px;">Editar</button>
-            </div>
+                <!-- Display read-only (populated by JS after gate) -->
+                <div class="ident-locked-card">
+                  <div class="ident-locked-rows">
+                    <div class="ident-locked-row">
+                      <span class="ident-locked-label">Tipo de documento</span>
+                      <span id="ident-display-tipo" class="ident-locked-val">—</span>
+                    </div>
+                    <div class="ident-locked-row">
+                      <span class="ident-locked-label">Número de identificación</span>
+                      <span id="ident-display-num" class="ident-locked-val">—</span>
+                    </div>
+                  </div>
+                  <button type="button" id="btn-reiniciar-verificacion" class="ident-reset-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <line x1="19" y1="12" x2="5" y2="12" />
+                      <polyline points="12 19 5 12 12 5" />
+                    </svg>
+                    ¿Número incorrecto? Volver a verificar
+                  </button>
+                </div>
 
-            <!-- Foto de perfil -->
-            <div class="field" id="photo-field" style="margin-top:10px;">
-              <label>Foto de perfil</label>
-              <div style="display:flex; align-items:center; gap:12px; margin-top:6px;">
-                <img id="photo-img" src="" alt="Foto de perfil"
-                  style="width:96px; height:96px; object-fit:cover; border-radius:8px; border:1px solid var(--border); display:none;" />
-                <div id="photo-placeholder" style="color:var(--muted);">No hay foto cargada</div>
+                <!-- Hidden fields — kept for JS compatibility and form submission -->
+                <select id="tipo_documento" name="tipo_documento" data-required="true" style="display:none;"></select>
+                <input type="hidden" id="identificacion" name="identificacion" data-required="true" />
+                <div class="field-error" id="error-tipo_documento"></div>
+                <div class="field-error" id="error-identificacion"></div>
               </div>
+            </div>
 
-              <input type="file" id="photo_input" accept="image/png, image/jpeg" style="margin-top:8px;" />
-              <div class="help-text">Formatos aceptados: JPG / PNG. Máx 5 MB.</div>
+            <!-- Foto -->
+            <div class="form-section">
+              <div class="form-section-hd">Foto de perfil</div>
+              <div class="form-section-body" id="photo-field">
+                <div class="photo-preview-wrap">
+                  <img id="photo-img" class="photo-preview-img" src="" alt="Foto de perfil" />
+                  <div id="photo-placeholder" class="photo-placeholder">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+                      style="color:var(--text-dim)">
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                      <circle cx="12" cy="7" r="4" />
+                    </svg>
+                    <span>Sin foto cargada</span>
+                  </div>
+                </div>
+                <!-- File input styled as a select-file zone -->
+                <label for="photo_input" class="photo-select-zone" id="photo-select-label">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="17 8 12 3 7 8" />
+                    <line x1="12" y1="3" x2="12" y2="15" />
+                  </svg>
+                  Seleccionar foto
+                  <span class="photo-select-hint">JPG / PNG — Máx. 5 MB</span>
+                </label>
+                <input type="file" id="photo_input" accept="image/png, image/jpeg"
+                  style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;" />
 
-              <div style="margin-top:8px; display:flex; gap:8px;">
-                <button type="button" id="btn-upload-photo" class="btn btn-secondary">Subir foto</button>
-                <button type="button" id="btn-remove-photo" class="btn btn-secondary hidden">Eliminar</button>
-                <span id="photo-status" style="align-self:center; color:var(--muted); font-size:0.9rem;"></span>
+                <!-- Status row — upload progress + remove -->
+                <div id="photo-status-row" style="display:flex; align-items:center; gap:8px; margin-top:10px;">
+                  <span id="photo-status" style="color:var(--text-dim); font-size:12px; flex:1;"></span>
+                  <button type="button" id="btn-remove-photo" class="btn btn-ghost btn-sm hidden">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                      <path d="M10 11v6" />
+                      <path d="M14 11v6" />
+                    </svg>
+                    Eliminar foto
+                  </button>
+                </div>
+
+                <!-- Hidden retry button — used only by PhotoController if needed -->
+                <button type="button" id="btn-upload-photo" style="display:none;" aria-hidden="true"></button>
+
+                <div class="field-error" id="error-photo"></div>
               </div>
-              <div class="field-error" id="error-photo"></div>
             </div>
 
-            <div class="field">
-              <label for="primer_nombre">
-                Primer nombre <span class="required">*</span>
-              </label>
-              <input type="text" id="primer_nombre" name="primer_nombre" data-required="true" />
-              <div class="field-error" id="error-primer_nombre"></div>
-            </div>
-
-            <div class="field">
-              <label for="segundo_nombre">Segundo nombre</label>
-              <input type="text" id="segundo_nombre" name="segundo_nombre" />
-              <div class="field-error" id="error-segundo_nombre"></div>
-            </div>
-
-            <div class="field">
-              <label for="primer_apellido">
-                Primer apellido <span class="required">*</span>
-              </label>
-              <input type="text" id="primer_apellido" name="primer_apellido" data-required="true" />
-              <div class="field-error" id="error-primer_apellido"></div>
-            </div>
-
-            <div class="field">
-              <label for="segundo_apellido">Segundo apellido</label>
-              <input type="text" id="segundo_apellido" name="segundo_apellido" />
-              <div class="field-error" id="error-segundo_apellido"></div>
-            </div>
-
-            <div class="field">
-              <label for="fecha_nacimiento">
-                Fecha de nacimiento <span class="required">*</span>
-              </label>
-              <input type="date" id="fecha_nacimiento" name="fecha_nacimiento" data-required="true" />
-              <div class="field-error" id="error-fecha_nacimiento"></div>
-            </div>
-
-            <div class="field field-small">
-              <label for="edad">Edad</label>
-              <input type="number" id="edad" name="edad" readonly />
-              <div class="help-text">Se calcula automáticamente a partir de tu fecha de nacimiento.</div>
-              <div class="field-error" id="error-edad"></div>
-            </div>
-
-            <div class="field">
-              <label for="departamento_expedicion">
-                Departamento de expedición <span class="required">*</span>
-              </label>
-              <p class="field-help">Si se expidió en Bogotá, escoge D.C</p>
-              <select id="departamento_expedicion" name="departamento_expedicion" data-required="true"></select>
-              <div class="field-error" id="error-departamento_expedicion"></div>
-            </div>
-
-            <div class="field">
-              <label for="ciudad_expedicion">
-                Ciudad de expedición <span class="required">*</span>
-              </label>
-              <p class="field-help">&nbsp;</p>
-              <select id="ciudad_expedicion" name="ciudad_expedicion" data-required="true"></select>
-              <div class="field-error" id="error-ciudad_expedicion"></div>
-            </div>
-
-            <div class="field">
-              <label for="fecha_expedicion">
-                Fecha de expedición <span class="required">*</span>
-              </label>
-              <input type="date" id="fecha_expedicion" name="fecha_expedicion" data-required="true" />
-              <div class="field-error" id="error-fecha_expedicion"></div>
-            </div>
-
-            <div class="field">
-              <label for="estado_civil">
-                Estado civil <span class="required">*</span>
-              </label>
-              <select id="estado_civil" name="estado_civil" data-required="true">
-                <option value="">Selecciona una opción</option>
-              </select>
-              <div class="field-error" id="error-estado_civil"></div>
-            </div>
-
-            <div class="field">
-              <label for="direccion_barrio">
-                Dirección y barrio <span class="required">*</span>
-              </label>
-              <input type="text" id="direccion_barrio" name="direccion_barrio" data-required="true" />
-              <div class="field-error" id="error-direccion_barrio"></div>
-            </div>
-
-            <div class="field">
-              <label for="departamento_residencia">
-                Departamento de residencia <span class="required">*</span>
-              </label>
-              <select id="departamento_residencia" name="departamento_residencia" data-required="true"></select>
-              <div class="field-error" id="error-departamento_residencia"></div>
-            </div>
-
-            <div class="field">
-              <label for="ciudad_residencia">
-                Ciudad de residencia <span class="required">*</span>
-              </label>
-              <select id="ciudad_residencia" name="ciudad_residencia" data-required="true"></select>
-              <div class="field-error" id="error-ciudad_residencia"></div>
-            </div>
-
-            <div class="field">
-              <label for="telefono">
-                Teléfono / Celular <span class="required">*</span>
-              </label>
-              <input type="tel" id="telefono" name="telefono" data-required="true" />
-              <div class="field-error" id="error-telefono"></div>
-            </div>
-
-            <div class="field">
-              <label for="correo_electronico">
-                Correo electrónico <span class="required">*</span>
-              </label>
-              <input type="email" id="correo_electronico" name="correo_electronico" data-required="true" />
-              <div class="field-error" id="error-correo_electronico"></div>
-            </div>
-
-            <div class="field">
-              <label for="eps">
-                EPS <span class="required">*</span>
-              </label>
-              <select id="eps" name="eps" data-required="true"></select>
-              <div class="field-error" id="error-eps"></div>
-            </div>
-
-            <div class="field">
-              <label for="afp">
-                Fondo de pensión <span class="required">*</span>
-              </label>
-              <select id="afp" name="afp" data-required="true"></select>
-              <div class="field-error" id="error-afp"></div>
-            </div>
-
-            <div class="field">
-              <label for="rh">
-                Grupo sanguíneo (RH) <span class="required">*</span>
-              </label>
-              <select id="rh" name="rh" data-required="true">
-                <option value="">Selecciona una opción</option>
-                <option value="A+">A+</option>
-                <option value="A-">A-</option>
-                <option value="B+">B+</option>
-                <option value="B-">B-</option>
-                <option value="AB+">AB+</option>
-                <option value="AB-">AB-</option>
-                <option value="O+">O+</option>
-                <option value="O-">O-</option>
-              </select>
-              <div class="field-error" id="error-rh"></div>
-            </div>
-
-            <div class="field">
-              <label for="talla_pantalon">
-                Talla pantalón <span class="required">*</span>
-              </label>
-              <input type="text" id="talla_pantalon" name="talla_pantalon" data-required="true" />
-              <div class="field-error" id="error-talla_pantalon"></div>
-            </div>
-
-            <div class="field">
-              <label for="camisa_talla">
-                Talla camisa <span class="required">*</span>
-              </label>
-              <input type="text" id="camisa_talla" name="camisa_talla" data-required="true" />
-              <div class="field-error" id="error-camisa_talla"></div>
-            </div>
-
-            <div class="field">
-              <label for="zapatos_talla">
-                Talla zapatos <span class="required">*</span>
-              </label>
-              <input type="text" id="zapatos_talla" name="zapatos_talla" data-required="true" />
-              <div class="field-error" id="error-zapatos_talla"></div>
-            </div>
-
-            <div class="field">
-              <label>Firma <span class="required">*</span></label>
-              <div class="signature-wrapper">
-                <canvas id="signatureCanvas"></canvas>
+            <!-- Nombres -->
+            <div class="form-section">
+              <div class="form-section-hd">Nombres y apellidos</div>
+              <div class="form-section-body">
+                <div class="grid">
+                  <div class="fg">
+                    <label class="flbl" for="primer_nombre">Primer nombre <span class="required">*</span></label>
+                    <input type="text" id="primer_nombre" name="primer_nombre" class="fi" data-required="true" />
+                    <div class="field-error" id="error-primer_nombre"></div>
+                  </div>
+                  <div class="fg">
+                    <label class="flbl" for="segundo_nombre">Segundo nombre</label>
+                    <input type="text" id="segundo_nombre" name="segundo_nombre" class="fi" />
+                  </div>
+                  <div class="fg">
+                    <label class="flbl" for="primer_apellido">Primer apellido <span class="required">*</span></label>
+                    <input type="text" id="primer_apellido" name="primer_apellido" class="fi" data-required="true" />
+                    <div class="field-error" id="error-primer_apellido"></div>
+                  </div>
+                  <div class="fg">
+                    <label class="flbl" for="segundo_apellido">Segundo apellido</label>
+                    <input type="text" id="segundo_apellido" name="segundo_apellido" class="fi" />
+                  </div>
+                </div>
               </div>
-              <div class="signature-actions">
-                <button type="button" class="btn btn-secondary btn-sm" onclick="clearSignature()">
-                  Limpiar
+            </div>
+
+            <!-- Nacimiento y expedición -->
+            <div class="form-section">
+              <div class="form-section-hd">Nacimiento y expedición del documento</div>
+              <div class="form-section-body">
+                <div class="grid">
+                  <div class="fg">
+                    <label class="flbl" for="fecha_nacimiento">Fecha de nacimiento <span
+                        class="required">*</span></label>
+                    <input type="date" id="fecha_nacimiento" name="fecha_nacimiento" class="fi" data-required="true" />
+                    <div class="field-error" id="error-fecha_nacimiento"></div>
+                  </div>
+                  <div class="fg">
+                    <label class="flbl" for="edad">Edad</label>
+                    <input type="number" id="edad" name="edad" class="fi" readonly />
+                    <div class="help-text">Se calcula automáticamente.</div>
+                  </div>
+                  <div class="fg">
+                    <label class="flbl" for="departamento_expedicion">Depto. de expedición <span
+                        class="required">*</span></label>
+                    <div class="help-text">Si se expidió en Bogotá, escoge D.C</div>
+                    <select id="departamento_expedicion" name="departamento_expedicion" class="fi"
+                      data-required="true"></select>
+                    <div class="field-error" id="error-departamento_expedicion"></div>
+                  </div>
+                  <div class="fg">
+                    <label class="flbl" for="ciudad_expedicion">Ciudad de expedición <span
+                        class="required">*</span></label>
+                    <div class="help-text">&nbsp;</div>
+                    <select id="ciudad_expedicion" name="ciudad_expedicion" class="fi" data-required="true"></select>
+                    <div class="field-error" id="error-ciudad_expedicion"></div>
+                  </div>
+                  <div class="fg">
+                    <label class="flbl" for="fecha_expedicion">Fecha de expedición <span
+                        class="required">*</span></label>
+                    <input type="date" id="fecha_expedicion" name="fecha_expedicion" class="fi" data-required="true" />
+                    <div class="field-error" id="error-fecha_expedicion"></div>
+                  </div>
+                  <div class="fg">
+                    <label class="flbl" for="estado_civil">Estado civil <span class="required">*</span></label>
+                    <select id="estado_civil" name="estado_civil" class="fi" data-required="true">
+                      <option value="">Selecciona una opción</option>
+                    </select>
+                    <div class="field-error" id="error-estado_civil"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Residencia y contacto -->
+            <div class="form-section">
+              <div class="form-section-hd">Residencia y contacto</div>
+              <div class="form-section-body">
+                <div class="grid">
+                  <div class="fg">
+                    <label class="flbl" for="direccion_barrio">Dirección y barrio <span
+                        class="required">*</span></label>
+                    <input type="text" id="direccion_barrio" name="direccion_barrio" class="fi" data-required="true" />
+                    <div class="field-error" id="error-direccion_barrio"></div>
+                  </div>
+                  <div class="fg">
+                    <label class="flbl" for="departamento_residencia">Departamento de residencia <span
+                        class="required">*</span></label>
+                    <select id="departamento_residencia" name="departamento_residencia" class="fi"
+                      data-required="true"></select>
+                    <div class="field-error" id="error-departamento_residencia"></div>
+                  </div>
+                  <div class="fg">
+                    <label class="flbl" for="ciudad_residencia">Ciudad de residencia <span
+                        class="required">*</span></label>
+                    <select id="ciudad_residencia" name="ciudad_residencia" class="fi" data-required="true"></select>
+                    <div class="field-error" id="error-ciudad_residencia"></div>
+                  </div>
+                  <div class="fg">
+                    <label class="flbl" for="telefono">Teléfono / Celular <span class="required">*</span></label>
+                    <input type="tel" id="telefono" name="telefono" class="fi" data-required="true" data-num="true"
+                      inputmode="numeric" maxlength="10" placeholder="3001234567" />
+                    <div class="field-error" id="error-telefono"></div>
+                  </div>
+                  <div class="fg" style="grid-column: span 2;">
+                    <label class="flbl" for="correo_electronico">Correo electrónico <span
+                        class="required">*</span></label>
+                    <input type="email" id="correo_electronico" name="correo_electronico" class="fi"
+                      data-required="true" placeholder="nombre@ejemplo.com" />
+                    <div class="field-error" id="error-correo_electronico"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Seguridad social y tallas -->
+            <div class="form-section">
+              <div class="form-section-hd">Seguridad social y tallas</div>
+              <div class="form-section-body">
+                <div class="grid">
+                  <div class="fg">
+                    <label class="flbl" for="eps">EPS <span class="required">*</span></label>
+                    <select id="eps" name="eps" class="fi" data-required="true"></select>
+                    <div class="field-error" id="error-eps"></div>
+                  </div>
+                  <div class="fg">
+                    <label class="flbl" for="afp">Fondo de pensión <span class="required">*</span></label>
+                    <select id="afp" name="afp" class="fi" data-required="true"></select>
+                    <div class="field-error" id="error-afp"></div>
+                  </div>
+                  <div class="fg">
+                    <label class="flbl" for="rh">Grupo sanguíneo (RH) <span class="required">*</span></label>
+                    <select id="rh" name="rh" class="fi" data-required="true">
+                      <option value="">Selecciona una opción</option>
+                      <option>A+</option>
+                      <option>A-</option>
+                      <option>B+</option>
+                      <option>B-</option>
+                      <option>AB+</option>
+                      <option>AB-</option>
+                      <option>O+</option>
+                      <option>O-</option>
+                    </select>
+                    <div class="field-error" id="error-rh"></div>
+                  </div>
+                  <div class="fg">
+                    <label class="flbl" for="talla_pantalon">Talla pantalón <span class="required">*</span></label>
+                    <input type="number" id="talla_pantalon" name="talla_pantalon" class="fi" data-required="true"
+                      min="24" max="50" placeholder="28" />
+                    <div class="field-error" id="error-talla_pantalon"></div>
+                  </div>
+                  <div class="fg">
+                    <label class="flbl" for="camisa_talla">Talla camisa <span class="required">*</span></label>
+                    <input type="text" id="camisa_talla" name="camisa_talla" class="fi" data-required="true" />
+                    <div class="field-error" id="error-camisa_talla"></div>
+                  </div>
+                  <div class="fg">
+                    <label class="flbl" for="zapatos_talla">Talla zapatos <span class="required">*</span></label>
+                    <input type="number" id="zapatos_talla" name="zapatos_talla" class="fi" data-required="true"
+                      min="34" max="50" placeholder="40" />
+                    <div class="field-error" id="error-zapatos_talla"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Firma -->
+            <div class="form-section">
+              <div class="form-section-hd">Firma digital <span class="required">*</span></div>
+              <div class="form-section-body">
+                <div class="signature-wrapper">
+                  <canvas id="signatureCanvas"></canvas>
+                </div>
+                <div class="signature-actions">
+                  <button type="button" class="btn btn-ghost btn-sm" onclick="clearSignature()">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M3 6h18" />
+                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                    </svg>
+                    Limpiar firma
+                  </button>
+                </div>
+                <div class="field-error" id="error-firma"></div>
+              </div>
+            </div>
+
+            <div id="error-step-2" class="error-message" style="display:none;"></div>
+          </div>
+
+          <!-- ── PASO 2: EDUCACIÓN ─────────────────────────────────────────── -->
+          <div class="form-step" data-step="2">
+            <div class="step-header-row">
+              <div class="step-header">
+                <h2>Educación</h2>
+                <p>Registra tus estudios. Puedes agregar todos los que necesites.</p>
+              </div>
+              <button type="button" class="btn btn-primary" id="btn-add-educacion">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                Agregar estudio
+              </button>
+            </div>
+            <div id="educacion-list"></div>
+            <div id="error-step-3" class="error-message" style="display:none;"></div>
+          </div>
+
+          <!-- ── PASO 3: EXPERIENCIA ──────────────────────────────────────── -->
+          <div class="form-step" data-step="3">
+            <div class="step-header-row">
+              <div class="step-header">
+                <h2>Experiencia laboral</h2>
+                <p>Registra tus empleos anteriores. Puedes agregar tantos como necesites.</p>
+              </div>
+              <button type="button" class="btn btn-primary" id="btn-add-exp">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                Agregar experiencia
+              </button>
+            </div>
+            <div id="exp-list"></div>
+            <div id="error-step-4" class="error-message" style="display:none;"></div>
+          </div>
+
+          <!-- ── PASO 4: HIJOS / FAMILIARES / REFERENCIAS ─────────────────── -->
+          <div class="form-step" data-step="4">
+
+            <!-- ▸ HIJOS (opcional) -->
+            <div class="section-block">
+              <div class="section-block-hd">
+                <div>
+                  <div class="section-block-title">
+                    Hijos
+                    <span class="section-block-badge">Opcional</span>
+                  </div>
+                  <div class="section-block-sub">Si tienes hijos, regístralos aquí. Puedes agregar tantos como
+                    necesites.</div>
+                </div>
+                <button type="button" class="btn btn-primary" id="btn-add-hijo">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                  Agregar hijo
                 </button>
               </div>
-              <div class="field-error" id="error-firma"></div>
-            </div>
-          </div>
-          <div id="error-step-2" class="error-message"></div>
-        </div>
-
-        <!-- PASO 3: EDUCACIÓN -->
-        <div class="form-step" data-step="2">
-          <div class="step-title">Educación</div>
-          <p class="help-text">
-            Registra tus estudios realizados. Puedes agregar todos los que necesites.
-          </p>
-
-          <div id="educacion-list"></div>
-
-          <button type="button" class="btn btn-primary" id="btn-add-educacion" style="margin-top: 10px;">
-            ➕ Agregar estudio
-          </button>
-
-          <div id="error-step-3" class="error-message"></div>
-        </div>
-
-        <!-- PASO 4: EXPERIENCIA -->
-        <div class="form-step" data-step="3">
-          <div class="step-title">Experiencia laboral</div>
-          <p class="help-text">
-            Registra tus empleos anteriores. Puedes agregar tantos como necesites.
-          </p>
-
-          <div id="exp-list"></div>
-
-          <button type="button" class="btn btn-primary" id="btn-add-exp" style="margin-top: 10px;">
-            ➕ Agregar experiencia laboral
-          </button>
-
-          <div id="error-step-4" class="error-message"></div>
-        </div>
-
-        <!-- PASO 5: FAMILIA + REFERENCIAS -->
-        <div class="form-step" data-step="4">
-          <div class="step-title">Familiares y referencias</div>
-          <p class="help-text">
-            Registra tu núcleo familiar y las referencias que podamos contactar.
-          </p>
-
-          <!-- Familiares -->
-          <div id="fam-list"></div>
-
-          <button type="button" class="btn btn-primary" id="btn-add-fam" style="margin-top: 10px;">
-            ➕ Agregar familiar
-          </button>
-
-          <div id="error-step-5" class="error-message" style="margin-top: 10px;"></div>
-
-          <!-- Referencias -->
-          <div style="margin-top: 28px;">
-            <div class="step-title">Referencias</div>
-
-            <div class="ref-card">
-              <h4>Referencia laboral</h4>
-              <div class="grid">
-                <div class="field">
-                  <label>Empresa</label>
-                  <input type="text" id="ref_lab_empresa" />
-                  <div class="field-error" id="error-ref_lab_empresa"></div>
-                </div>
-                <div class="field">
-                  <label>Jefe inmediato</label>
-                  <input type="text" id="ref_lab_jefe" />
-                  <div class="field-error" id="error-ref_lab_jefe"></div>
-                </div>
-                <div class="field">
-                  <label>Cargo</label>
-                  <input type="text" id="ref_lab_cargo" />
-                  <div class="field-error" id="error-ref_lab_cargo"></div>
-                </div>
-                <div class="field">
-                  <label>Teléfono</label>
-                  <input type="text" id="ref_lab_tel" />
-                  <div class="field-error" id="error-ref_lab_tel"></div>
-                </div>
+              <div id="hijo-list"></div>
+              <div id="hijo-empty-msg" class="section-empty-hint">Sin hijos registrados — esta sección es opcional.
               </div>
             </div>
 
-            <div class="ref-card">
-              <h4>Referencia familiar</h4>
-              <div class="grid">
-                <div class="field">
-                  <label>Nombre</label>
-                  <input type="text" id="ref_fam_nombre" />
-                  <div class="field-error" id="error-ref_fam_nombre"></div>
+            <hr class="section-divider">
+
+            <!-- ▸ FAMILIARES -->
+            <div class="section-block">
+              <div class="section-block-hd">
+                <div>
+                  <div class="section-block-title">Familiares</div>
+                  <div class="section-block-sub">Registra tu núcleo familiar. Agrega todos los que necesites.</div>
                 </div>
-                <div class="field">
-                  <label>Parentesco</label>
-                  <input type="text" id="ref_fam_parentesco" />
-                  <div class="field-error" id="error-ref_fam_parentesco"></div>
-                </div>
-                <div class="field">
-                  <label>Teléfono</label>
-                  <input type="text" id="ref_fam_tel" />
-                  <div class="field-error" id="error-ref_fam_tel"></div>
-                </div>
-                <div class="field">
-                  <label>Ocupación</label>
-                  <input type="text" id="ref_fam_ocupacion" />
-                  <div class="field-error" id="error-ref_fam_ocupacion"></div>
-                </div>
+                <button type="button" class="btn btn-primary" id="btn-add-fam">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                  Agregar familiar
+                </button>
               </div>
+              <div id="fam-list"></div>
+              <div id="error-step-5" class="error-message" style="display:none;"></div>
             </div>
 
-            <div class="ref-card">
-              <h4>Referencia personal</h4>
-              <div class="grid">
-                <div class="field">
-                  <label>Nombre</label>
-                  <input type="text" id="ref_per_nombre" />
-                  <div class="field-error" id="error-ref_per_nombre"></div>
+            <hr class="section-divider">
+
+            <!-- ▸ REFERENCIAS -->
+            <div class="section-block">
+              <div class="section-block-hd">
+                <div>
+                  <div class="section-block-title">Referencias</div>
+                  <div class="section-block-sub">Proporciona las personas que puedan dar referencias laborales,
+                    familiares y personales.</div>
                 </div>
-                <div class="field">
-                  <label>Relación</label>
-                  <input type="text" id="ref_per_relacion" />
-                  <div class="field-error" id="error-ref_per_relacion"></div>
+              </div>
+
+              <div class="form-section">
+                <div class="form-section-hd">Referencia laboral</div>
+                <div class="form-section-body">
+                  <div class="grid">
+                    <div class="fg"><label class="flbl">Empresa</label><input type="text" id="ref_lab_empresa"
+                        class="fi" /></div>
+                    <div class="fg"><label class="flbl">Jefe inmediato</label><input type="text" id="ref_lab_jefe"
+                        class="fi" /></div>
+                    <div class="fg"><label class="flbl">Cargo</label><input type="text" id="ref_lab_cargo" class="fi" />
+                    </div>
+                    <div class="fg"><label class="flbl">Teléfono</label><input type="tel" id="ref_lab_tel" class="fi"
+                        data-num="true" inputmode="numeric" maxlength="10" /></div>
+                  </div>
                 </div>
-                <div class="field">
-                  <label>Teléfono</label>
-                  <input type="text" id="ref_per_tel" />
-                  <div class="field-error" id="error-ref_per_tel"></div>
+              </div>
+
+              <div class="form-section">
+                <div class="form-section-hd">Referencia familiar</div>
+                <div class="form-section-body">
+                  <div class="grid">
+                    <div class="fg"><label class="flbl">Nombre</label><input type="text" id="ref_fam_nombre"
+                        class="fi" /></div>
+                    <div class="fg"><label class="flbl">Parentesco</label><input type="text" id="ref_fam_parentesco"
+                        class="fi" /></div>
+                    <div class="fg"><label class="flbl">Teléfono</label><input type="tel" id="ref_fam_tel" class="fi"
+                        data-num="true" inputmode="numeric" maxlength="10" /></div>
+                    <div class="fg"><label class="flbl">Ocupación</label><input type="text" id="ref_fam_ocupacion"
+                        class="fi" /></div>
+                  </div>
                 </div>
-                <div class="field">
-                  <label>Ocupación</label>
-                  <input type="text" id="ref_per_ocupacion" />
-                  <div class="field-error" id="error-ref_per_ocupacion"></div>
+              </div>
+
+              <div class="form-section">
+                <div class="form-section-hd">Referencia personal</div>
+                <div class="form-section-body">
+                  <div class="grid">
+                    <div class="fg"><label class="flbl">Nombre</label><input type="text" id="ref_per_nombre"
+                        class="fi" /></div>
+                    <div class="fg"><label class="flbl">Relación</label><input type="text" id="ref_per_relacion"
+                        class="fi" /></div>
+                    <div class="fg"><label class="flbl">Teléfono</label><input type="tel" id="ref_per_tel" class="fi"
+                        data-num="true" inputmode="numeric" maxlength="10" /></div>
+                    <div class="fg"><label class="flbl">Ocupación</label><input type="text" id="ref_per_ocupacion"
+                        class="fi" /></div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <!-- PASO 6: EMERGENCIA + METAS -->
-        <div class="form-step" data-step="5">
-          <div class="step-title">Contacto de emergencia y metas</div>
-          <p class="help-text">
-            Indica a quién debemos contactar en caso de emergencia y cuéntanos tus metas.
-          </p>
-
-          <div class="grid">
-            <div class="field">
-              <label>Nombre completo (emergencia)</label>
-              <input type="text" id="emer_nombre" />
-              <div class="field-error" id="error-emer_nombre"></div>
+          <!-- ── PASO 5: EMERGENCIA + METAS ───────────────────────────────── -->
+          <div class="form-step" data-step="5">
+            <div class="step-header">
+              <h2>Emergencia y metas</h2>
+              <p>Indica a quién debemos contactar en caso de emergencia y cuéntanos tus metas personales.</p>
             </div>
 
-            <div class="field">
-              <label>Parentesco</label>
-              <input type="text" id="emer_parentesco" />
-              <div class="field-error" id="error-emer_parentesco"></div>
+            <div class="form-section">
+              <div class="form-section-hd">Contacto de emergencia</div>
+              <div class="form-section-body">
+                <div class="grid">
+                  <div class="fg"><label class="flbl">Nombre completo</label><input type="text" id="emer_nombre"
+                      class="fi" />
+                    <div class="field-error" id="error-emer_nombre"></div>
+                  </div>
+                  <div class="fg"><label class="flbl">Parentesco</label><input type="text" id="emer_parentesco"
+                      class="fi" />
+                    <div class="field-error" id="error-emer_parentesco"></div>
+                  </div>
+                  <div class="fg"><label class="flbl">Teléfono</label><input type="tel" id="emer_telefono" class="fi"
+                      data-num="true" inputmode="numeric" maxlength="10" />
+                    <div class="field-error" id="error-emer_telefono"></div>
+                  </div>
+                  <div class="fg"><label class="flbl">Correo electrónico</label><input type="email" id="emer_correo"
+                      class="fi" />
+                    <div class="field-error" id="error-emer_correo"></div>
+                  </div>
+                  <div class="fg" style="grid-column: span 2;"><label class="flbl">Dirección</label><input type="text"
+                      id="emer_direccion" class="fi" />
+                    <div class="field-error" id="error-emer_direccion"></div>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div class="field">
-              <label>Teléfono</label>
-              <input type="tel" id="emer_telefono" />
-              <div class="field-error" id="error-emer_telefono"></div>
-            </div>
-
-            <div class="field">
-              <label>Correo electrónico</label>
-              <input type="email" id="emer_correo" />
-              <div class="field-error" id="error-emer_correo"></div>
-            </div>
-
-            <div class="field" style="grid-column:span 2;">
-              <label>Dirección</label>
-              <input type="text" id="emer_direccion" />
-              <div class="field-error" id="error-emer_direccion"></div>
-            </div>
-          </div>
-
-          <div style="margin-top: 20px;">
-            <div class="step-title">Metas personales</div>
-
-            <div class="field">
-              <label>Corto plazo</label>
-              <textarea id="meta_corto" rows="2"></textarea>
-              <div class="field-error" id="error-meta_corto"></div>
-            </div>
-
-            <div class="field">
-              <label>Mediano plazo</label>
-              <textarea id="meta_mediano" rows="2"></textarea>
-              <div class="field-error" id="error-meta_mediano"></div>
-            </div>
-
-            <div class="field">
-              <label>Largo plazo</label>
-              <textarea id="meta_largo" rows="2"></textarea>
-              <div class="field-error" id="error-meta_largo"></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- PASO 7: CUESTIONARIO PERSONAL -->
-        <div class="form-step" data-step="6">
-          <div class="step-title">Cuestionario personal y seguridad</div>
-          <p class="help-text">
-            Responde con sinceridad. Esta información es confidencial y se usa solo para el proceso.
-          </p>
-
-          <div class="grid">
-            <div class="field">
-              <label>¿Has tenido llamados de atención?</label>
-              <select id="seg_llamados">
-                <option value="0">No</option>
-                <option value="1">Sí</option>
-              </select>
-              <div class="field-error" id="error-seg_llamados"></div>
-            </div>
-
-            <div class="field hidden" id="detalle_llamados_wrap">
-              <label>Describe los llamados de atención</label>
-              <textarea id="seg_detalle_llamados" rows="2"></textarea>
-              <div class="field-error" id="error-seg_detalle_llamados"></div>
-            </div>
-
-            <div class="field">
-              <label>¿Has sufrido accidente laboral?</label>
-              <select id="seg_accidente">
-                <option value="0">No</option>
-                <option value="1">Sí</option>
-              </select>
-              <div class="field-error" id="error-seg_accidente"></div>
-            </div>
-
-            <div class="field hidden" id="detalle_accidente_wrap">
-              <label>Describe el accidente o enfermedad laboral</label>
-              <textarea id="seg_detalle_accidente" rows="2"></textarea>
-              <div class="field-error" id="error-seg_detalle_accidente"></div>
-            </div>
-
-            <div class="field">
-              <label>¿Tienes alguna enfermedad importante?</label>
-              <select id="seg_enfermedad">
-                <option value="0">No</option>
-                <option value="1">Sí</option>
-              </select>
-              <div class="field-error" id="error-seg_enfermedad"></div>
-            </div>
-
-            <div class="field hidden" id="detalle_enfermedad_wrap">
-              <label>Describe la enfermedad</label>
-              <textarea id="seg_detalle_enfermedad" rows="2"></textarea>
-              <div class="field-error" id="error-seg_detalle_enfermedad"></div>
-            </div>
-
-            <div class="field">
-              <label>¿Consumes alcohol?</label>
-              <select id="seg_alcohol">
-                <option value="0">No</option>
-                <option value="1">Sí</option>
-              </select>
-              <div class="field-error" id="error-seg_alcohol"></div>
-            </div>
-
-            <div class="field hidden" id="detalle_alcohol_wrap">
-              <label>Frecuencia (si aplica)</label>
-              <input type="text" id="seg_frecuencia" />
-              <div class="field-error" id="error-seg_frecuencia"></div>
-            </div>
-
-            <div class="field">
-              <label>¿Algún familiar trabaja aquí?</label>
-              <select id="seg_familiar">
-                <option value="0">No</option>
-                <option value="1">Sí</option>
-              </select>
-              <div class="field-error" id="error-seg_familiar"></div>
-            </div>
-
-            <div class="field hidden" id="detalle_familiar_wrap">
-              <label>Nombre del familiar y relación</label>
-              <input type="text" id="seg_familiar_nombre" />
-              <div class="field-error" id="error-seg_familiar_nombre"></div>
-            </div>
-
-            <div class="field">
-              <label>¿Has suministrado información falsa?</label>
-              <select id="seg_falsa">
-                <option value="0">No</option>
-                <option value="1">Sí</option>
-              </select>
-              <div class="field-error" id="error-seg_falsa"></div>
-            </div>
-
-            <div class="field">
-              <label>¿Aceptas pruebas de validación o polígrafo de ser necesario?</label>
-              <select id="seg_poligrafo">
-                <option value="1">Sí</option>
-                <option value="0">No</option>
-              </select>
-              <div class="field-error" id="error-seg_poligrafo"></div>
+            <div class="form-section">
+              <div class="form-section-hd">Metas personales</div>
+              <div class="form-section-body" style="display:flex; flex-direction:column; gap:14px;">
+                <div class="fg"><label class="flbl">Corto plazo</label><textarea id="meta_corto" class="fi"
+                    rows="2"></textarea></div>
+                <div class="fg"><label class="flbl">Mediano plazo</label><textarea id="meta_mediano" class="fi"
+                    rows="2"></textarea></div>
+                <div class="fg"><label class="flbl">Largo plazo</label><textarea id="meta_largo" class="fi"
+                    rows="2"></textarea></div>
+              </div>
             </div>
           </div>
 
-          <div class="field" style="margin-top:14px;">
-            <label>Observaciones adicionales</label>
-            <textarea id="seg_observaciones" rows="2"></textarea>
-            <div class="field-error" id="error-seg_observaciones"></div>
+          <!-- ── PASO 6: CUESTIONARIO ─────────────────────────────────────── -->
+          <div class="form-step" data-step="6">
+            <div class="step-header">
+              <h2>Cuestionario personal y seguridad</h2>
+              <p>Responde con sinceridad. Esta información es confidencial.</p>
+            </div>
+
+            <div class="form-section">
+              <div class="form-section-hd">Preguntas de seguridad</div>
+              <div class="form-section-body">
+                <div class="grid">
+                  <div class="fg">
+                    <label class="flbl">¿Has tenido llamados de atención?</label>
+                    <select id="seg_llamados" class="fi">
+                      <option value="0">No</option>
+                      <option value="1">Sí</option>
+                    </select>
+                  </div>
+                  <div class="fg hidden" id="detalle_llamados_wrap">
+                    <label class="flbl">Describe los llamados de atención</label>
+                    <textarea id="seg_detalle_llamados" class="fi" rows="2"></textarea>
+                  </div>
+
+                  <div class="fg">
+                    <label class="flbl">¿Has sufrido accidente laboral?</label>
+                    <select id="seg_accidente" class="fi">
+                      <option value="0">No</option>
+                      <option value="1">Sí</option>
+                    </select>
+                  </div>
+                  <div class="fg hidden" id="detalle_accidente_wrap">
+                    <label class="flbl">Describe el accidente o enfermedad</label>
+                    <textarea id="seg_detalle_accidente" class="fi" rows="2"></textarea>
+                  </div>
+
+                  <div class="fg">
+                    <label class="flbl">¿Tienes alguna enfermedad importante?</label>
+                    <select id="seg_enfermedad" class="fi">
+                      <option value="0">No</option>
+                      <option value="1">Sí</option>
+                    </select>
+                  </div>
+                  <div class="fg hidden" id="detalle_enfermedad_wrap">
+                    <label class="flbl">Describe la enfermedad</label>
+                    <textarea id="seg_detalle_enfermedad" class="fi" rows="2"></textarea>
+                  </div>
+
+                  <div class="fg">
+                    <label class="flbl">¿Consumes alcohol?</label>
+                    <select id="seg_alcohol" class="fi">
+                      <option value="0">No</option>
+                      <option value="1">Sí</option>
+                    </select>
+                  </div>
+                  <div class="fg hidden" id="detalle_alcohol_wrap">
+                    <label class="flbl">Frecuencia de consumo</label>
+                    <input type="text" id="seg_frecuencia" class="fi" />
+                  </div>
+
+                  <div class="fg">
+                    <label class="flbl">¿Algún familiar trabaja en Logyser?</label>
+                    <select id="seg_familiar" class="fi">
+                      <option value="0">No</option>
+                      <option value="1">Sí</option>
+                    </select>
+                  </div>
+                  <div class="fg hidden" id="detalle_familiar_wrap">
+                    <label class="flbl">Nombre del familiar y relación</label>
+                    <input type="text" id="seg_familiar_nombre" class="fi" />
+                  </div>
+
+                  <div class="fg">
+                    <label class="flbl">¿Has suministrado información falsa alguna vez?</label>
+                    <select id="seg_falsa" class="fi">
+                      <option value="0">No</option>
+                      <option value="1">Sí</option>
+                    </select>
+                  </div>
+                  <div class="fg">
+                    <label class="flbl">¿Aceptas pruebas de validación o polígrafo?</label>
+                    <select id="seg_poligrafo" class="fi">
+                      <option value="1">Sí</option>
+                      <option value="0">No</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-section">
+              <div class="form-section-hd">Preguntas abiertas</div>
+              <div class="form-section-body" style="display:flex; flex-direction:column; gap:14px;">
+                <div class="fg"><label class="flbl">Observaciones adicionales</label><textarea id="seg_observaciones"
+                    class="fi" rows="2"></textarea></div>
+                <div class="fg"><label class="flbl">¿Por qué crees que calificas para el cargo?</label><textarea
+                    id="seg_califica" class="fi" rows="2"></textarea></div>
+                <div class="fg"><label class="flbl">Fortalezas</label><textarea id="seg_fortal" class="fi"
+                    rows="2"></textarea></div>
+                <div class="fg"><label class="flbl">Aspectos por mejorar</label><textarea id="seg_mejorar" class="fi"
+                    rows="2"></textarea></div>
+                <div class="fg"><label class="flbl">Describe una situación difícil que hayas resuelto</label><textarea
+                    id="seg_resolucion" class="fi" rows="2"></textarea></div>
+              </div>
+            </div>
           </div>
 
-          <div class="field">
-            <label>¿Por qué crees que calificas para el cargo?</label>
-            <textarea id="seg_califica" rows="2"></textarea>
-            <div class="field-error" id="error-seg_califica"></div>
+          <!-- ── PASO 7: REVISIÓN ─────────────────────────────────────────── -->
+          <div class="form-step" data-step="7">
+            <div class="step-header">
+              <h2>Revisión y envío</h2>
+              <p>Verifica tu información antes de enviar. Puedes volver a pasos anteriores para corregir datos.</p>
+            </div>
+            <div id="preview-container" class="preview-container"></div>
           </div>
 
-          <div class="field">
-            <label>Fortalezas</label>
-            <textarea id="seg_fortal" rows="2"></textarea>
-            <div class="field-error" id="error-seg_fortal"></div>
+          <!-- ── NAVIGATION BAR ────────────────────────────────────────────── -->
+          <div class="nav-bar">
+            <div id="resumen-errores" class="error-summary"></div>
+            <div class="nav-bar-left">
+              <button type="button" class="btn btn-ghost" id="btn-prev" disabled>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="19" y1="12" x2="5" y2="12" />
+                  <polyline points="12 19 5 12 12 5" />
+                </svg>
+                Anterior
+              </button>
+            </div>
+            <div class="nav-bar-right">
+              <button type="button" class="btn btn-primary" id="btn-next">
+                Siguiente
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                  <polyline points="12 5 19 12 12 19" />
+                </svg>
+              </button>
+              <button type="submit" class="btn btn-primary hidden" id="btn-submit">
+                Enviar hoja de vida
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13" />
+                  <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                </svg>
+              </button>
+            </div>
           </div>
 
-          <div class="field">
-            <label>Aspectos por mejorar</label>
-            <textarea id="seg_mejorar" rows="2"></textarea>
-            <div class="field-error" id="error-seg_mejorar"></div>
-          </div>
+        </form>
+      </div><!-- /#form-area -->
+    </div><!-- /.app-card -->
+  </div><!-- /.page -->
 
-          <div class="field">
-            <label>Describe una situación difícil que enfrentaste y cómo la resolviste.</label>
-            <textarea id="seg_resolucion" rows="2"></textarea>
-            <div class="field-error" id="error-seg_resolucion"></div>
-          </div>
-        </div>
+  <!-- Toast -->
+  <div id="toast"></div>
 
-        <!-- PASO 8: PREVISUALIZACIÓN -->
-        <div class="form-step" data-step="7">
-          <div class="step-title">Revisión y envío</div>
-          <p class="help-text">
-            Verifica un resumen de la información que registraste. Puedes volver a pasos anteriores si quieres corregir
-            algo antes de enviar.
-          </p>
-          <div id="preview-container" class="preview-container"></div>
-        </div>
-
-        <!-- BOTONES -->
-        <div class="buttons">
-          <div id="resumen-errores" style="display:none; color: var(--error); background: #fff3f3; border: 1px solid var(--error); border-radius: 6px; padding: 10px 14px; margin-bottom: 12px; font-size: 0.95rem; font-weight: 600; width: 100%;"></div>
-          <div style="display:flex; gap:8px;">
-            <button type="button" class="btn btn-secondary" id="btn-prev" disabled>
-              ⬅ Anterior
-            </button>
-            <button type="button" class="btn btn-primary" id="btn-next">
-              Siguiente ➝
-            </button>
-            <button type="submit" class="btn btn-primary hidden" id="btn-submit">
-              Enviar hoja de vida ✅
-            </button>
-          </div>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- Confirm modal para eliminación de foto -->
+  <!-- Modal: confirmar eliminación de foto -->
   <div id="deletePhotoModalBackdrop" class="delete-modal-backdrop" aria-hidden="true" role="dialog"
     aria-labelledby="deletePhotoTitle" aria-modal="true">
     <div class="delete-modal-card" role="document">
-      <p id="deletePhotoTitle" style="font-weight:600;">¿Está seguro de eliminar esta foto?</p>
-      <p style="margin-top:4px; color:#666; font-size:0.95rem;">
-        Esta acción eliminará la foto del perfil y del servidor.
+      <p id="deletePhotoTitle" style="font-weight:600; font-size:15px;">Eliminar foto de perfil</p>
+      <p style="margin-top:8px; color:var(--text-mid); font-size:13px;">
+        Esta acción eliminará la foto del perfil y del servidor. No se puede deshacer.
       </p>
-      <div class="delete-modal-actions" style="margin-top:12px;">
-        <button id="deleteModalCancel" class="btn btn-secondary">Cancelar</button>
-        <button id="deleteModalConfirm" class="btn btn-primary">Eliminar</button>
+      <div class="delete-modal-actions">
+        <button id="deleteModalCancel" class="btn btn-ghost">Cancelar</button>
+        <button id="deleteModalConfirm" class="btn btn-danger">Eliminar</button>
       </div>
     </div>
   </div>
 
-  <script src="./script.js"></script>
-  <script src="./app.js"></script>
+  <!-- Modal: Política de Privacidad ──────────────────────────────────────── -->
+  <div id="politicaPrivacidadModal" class="privacy-modal-backdrop" aria-hidden="true" role="dialog"
+    aria-labelledby="politicaTitle" aria-modal="true">
+    <div class="privacy-modal-card" role="document">
+
+      <div class="privacy-modal-hd">
+        <div>
+          <div class="privacy-modal-title" id="politicaTitle">Política de Tratamiento de Datos Personales</div>
+          <div class="privacy-modal-sub">Logyser S.A.S — Ley 1581 de 2012</div>
+        </div>
+        <button type="button" id="btn-cerrar-politica" class="privacy-modal-close" aria-label="Cerrar">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="privacy-modal-body">
+
+        <div class="privacy-section">
+          <div class="privacy-section-title">1. Responsable del Tratamiento</div>
+          <p><strong>Logyser S.A.S</strong>, empresa constituida bajo las leyes de la República de Colombia, actúa como
+            Responsable del Tratamiento de los datos personales suministrados a través del presente formulario de
+            registro de hoja de vida, conforme a lo establecido en la Ley Estatutaria 1581 de 2012 y el Decreto
+            Reglamentario 1377 de 2013.</p>
+        </div>
+
+        <div class="privacy-section">
+          <div class="privacy-section-title">2. Finalidad del Tratamiento</div>
+          <p>Los datos personales recopilados serán utilizados exclusivamente para:</p>
+          <ul class="privacy-list">
+            <li>Evaluar su perfil como candidato en los procesos de selección de personal de Logyser S.A.S.</li>
+            <li>Gestionar y almacenar su hoja de vida en la base de datos de candidatos de la empresa.</li>
+            <li>Contactarlo sobre ofertas laborales, resultados del proceso de selección o actualizaciones relacionadas
+              con su candidatura.</li>
+            <li>Verificar la autenticidad de la información suministrada con fines de vinculación laboral.</li>
+            <li>Generar documentos de soporte del proceso de selección, incluyendo la hoja de vida en formato PDF.</li>
+            <li>Cumplir con obligaciones legales derivadas de la vinculación laboral.</li>
+          </ul>
+        </div>
+
+        <div class="privacy-section">
+          <div class="privacy-section-title">3. Datos Recopilados</div>
+          <p>Logyser S.A.S recopila la siguiente información personal:</p>
+          <ul class="privacy-list">
+            <li><strong>Datos de identificación:</strong> tipo y número de documento, fecha y lugar de expedición.</li>
+            <li><strong>Datos de contacto:</strong> dirección, municipio, departamento, teléfono, correo electrónico.
+            </li>
+            <li><strong>Datos académicos y laborales:</strong> historial educativo y experiencia profesional.</li>
+            <li><strong>Datos de salud:</strong> grupo sanguíneo, EPS, fondo de pensiones (exclusivamente para fines
+              laborales).</li>
+            <li><strong>Datos biométricos:</strong> fotografía de perfil y firma manuscrita digital.</li>
+            <li><strong>Datos familiares:</strong> información del núcleo familiar y referencias personales.</li>
+            <li><strong>Información de seguridad:</strong> respuestas al cuestionario de antecedentes y aptitudes.</li>
+          </ul>
+        </div>
+
+        <div class="privacy-section">
+          <div class="privacy-section-title">4. Derechos del Titular</div>
+          <p>En virtud de la Ley 1581 de 2012, usted como Titular de los datos tiene derecho a:</p>
+          <ul class="privacy-list">
+            <li><strong>Conocer:</strong> acceder gratuitamente a sus datos personales tratados por Logyser S.A.S.</li>
+            <li><strong>Actualizar y rectificar:</strong> solicitar la corrección de datos parciales, inexactos,
+              incompletos o fraccionados.</li>
+            <li><strong>Suprimir:</strong> solicitar la eliminación de sus datos cuando no se respeten los principios,
+              derechos y garantías de la ley. La solicitud de supresión no procederá cuando exista un deber legal de
+              conservar los datos.</li>
+            <li><strong>Revocar la autorización:</strong> retirar el consentimiento otorgado para el tratamiento de sus
+              datos en cualquier momento, siempre que no exista una obligación legal o contractual que lo impida.</li>
+            <li><strong>Presentar quejas:</strong> ante la Superintendencia de Industria y Comercio (SIC) cuando
+              considere que se ha vulnerado la normativa de protección de datos.</li>
+            <li><strong>Solicitar prueba:</strong> de la autorización otorgada a Logyser S.A.S para el tratamiento de
+              sus datos.</li>
+            <li><strong>Ser informado:</strong> sobre el uso dado a sus datos personales.</li>
+          </ul>
+        </div>
+
+        <div class="privacy-section">
+          <div class="privacy-section-title">5. Ejercicio de Derechos</div>
+          <p>Para ejercer cualquiera de los derechos mencionados, el Titular o sus causahabientes podrán dirigir su
+            solicitud a los canales oficiales de atención de Logyser S.A.S. La empresa dará respuesta en los términos
+            previstos en la Ley 1581 de 2012: consultas en un plazo máximo de diez (10) días hábiles, y reclamos en un
+            plazo máximo de quince (15) días hábiles.</p>
+        </div>
+
+        <div class="privacy-section">
+          <div class="privacy-section-title">6. Transferencia y Transmisión de Datos</div>
+          <p>Logyser S.A.S no realizará transferencias internacionales de datos personales sin el cumplimiento de los
+            requisitos establecidos en la normativa colombiana vigente. Los datos podrán ser compartidos únicamente con
+            terceros vinculados al proceso de selección, bajo estrictas obligaciones de confidencialidad.</p>
+        </div>
+
+        <div class="privacy-section">
+          <div class="privacy-section-title">7. Seguridad de la Información</div>
+          <p>Logyser S.A.S implementa las medidas técnicas, humanas y administrativas necesarias para garantizar la
+            seguridad de los datos personales y evitar su adulteración, pérdida, consulta, uso o acceso no autorizado,
+            conforme al artículo 17 literal (d) de la Ley 1581 de 2012.</p>
+        </div>
+
+        <div class="privacy-section">
+          <div class="privacy-section-title">8. Vigencia</div>
+          <p>La presente autorización tiene vigencia indefinida a partir del momento de su otorgamiento. Los datos serán
+            conservados mientras dure el proceso de selección y, en caso de vinculación laboral, durante el tiempo que
+            la ley laboral colombiana lo exija. El Titular podrá revocarla en cualquier momento.</p>
+        </div>
+
+        <div class="privacy-section">
+          <div class="privacy-section-title">9. Carácter Voluntario de la Información</div>
+          <p>La entrega de sus datos personales es voluntaria. Sin embargo, la negativa a suministrar la información
+            marcada como obligatoria podrá impedir la participación en el proceso de selección de personal de Logyser
+            S.A.S.</p>
+        </div>
+
+        <div class="privacy-notice">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+            style="flex-shrink:0; margin-top:2px;">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="16" x2="12" y2="12" />
+            <line x1="12" y1="8" x2="12.01" y2="8" />
+          </svg>
+          <span>Esta política se rige por la <strong>Ley Estatutaria 1581 de 2012</strong>, el <strong>Decreto 1377 de
+              2013</strong> y demás normas concordantes. La entidad de control es la <strong>Superintendencia de
+              Industria y Comercio (SIC)</strong> de Colombia.</span>
+        </div>
+
+      </div><!-- /.privacy-modal-body -->
+
+      <div class="privacy-modal-ft">
+        <button type="button" id="btn-aceptar-politica" class="btn btn-primary">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          Entendido, acepto la política
+        </button>
+        <button type="button" id="btn-cerrar-politica-2" class="btn btn-ghost">Cerrar</button>
+      </div>
+
+    </div><!-- /.privacy-modal-card -->
+  </div><!-- /#politicaPrivacidadModal -->
+
+  <!-- ── Scripts: MVC load order ──────────────────────────────────────────── -->
+  <script src="./js/config.js"></script>
+  <script src="./js/models/FormModel.js"></script>
+  <script src="./js/models/ApiModel.js"></script>
+  <script src="./js/views/StepperView.js"></script>
+  <script src="./js/views/SignatureView.js"></script>
+  <script src="./js/views/DynamicView.js"></script>
+  <script src="./js/views/PreviewView.js"></script>
+  <script src="./js/controllers/ValidationController.js"></script>
+  <script src="./js/controllers/DataController.js"></script>
+  <script src="./js/controllers/PhotoController.js"></script>
+  <script src="./js/controllers/AppController.js"></script>
+
 </body>
 
 </html>

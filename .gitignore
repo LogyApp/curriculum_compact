@@ -11,3 +11,4 @@ json-key.json
 npm-debug.log*
 .DS_Store
 dist/
+migrations
