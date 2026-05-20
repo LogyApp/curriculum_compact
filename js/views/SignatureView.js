@@ -2,38 +2,47 @@
 
 let signatureCanvas, signatureCtx;
 let drawingSignature = false;
-let _firmaReadOnly   = false; // true when showing an existing firma from DB
+let _firmaReadOnly   = false;
 
-/* ── Clear & allow redraw ────────────────────────────────────────────────── */
+/* ── Clear & unlock for redrawing ────────────────────────────────────────── */
 window.clearSignature = function () {
     signatureCanvas = document.getElementById('signatureCanvas');
     signatureCtx    = signatureCanvas ? signatureCanvas.getContext('2d') : null;
     if (!signatureCanvas || !signatureCtx) return;
 
-    signatureCtx.fillStyle = '#ffffff';
+    // Re-create context to clear any taint from cross-origin image
+    signatureCanvas.width = signatureCanvas.width; // resets canvas
+    signatureCtx = signatureCanvas.getContext('2d');
+    signatureCtx.lineWidth   = 2;
+    signatureCtx.lineCap     = 'round';
+    signatureCtx.lineJoin    = 'round';
+    signatureCtx.strokeStyle = '#0F1C3F';
+    signatureCtx.fillStyle   = '#ffffff';
     signatureCtx.fillRect(0, 0, signatureCanvas.width, signatureCanvas.height);
 
     sessionStorage.removeItem('firma_temp');
     sessionStorage.removeItem('firma_url_db');
 
-    // Unlock canvas for new drawing
     _firmaReadOnly = false;
-    _setCanvasInteractive(true);
+    _applyCanvasState(true);
 
     const errorFirma = document.getElementById('error-firma');
     if (errorFirma) errorFirma.textContent = '';
 };
 
-/* ── Lock / unlock helper ────────────────────────────────────────────────── */
-function _setCanvasInteractive(interactive) {
+/* ── Visual state ────────────────────────────────────────────────────────── */
+function _applyCanvasState(editable) {
     if (!signatureCanvas) return;
-    signatureCanvas.style.cursor  = interactive ? 'crosshair' : 'default';
-    signatureCanvas.style.opacity = interactive ? '1' : '0.9';
-    // Visual overlay on the wrapper to signal read-only
+    signatureCanvas.style.cursor  = editable ? 'crosshair' : 'default';
+    signatureCanvas.style.opacity = editable ? '1' : '0.92';
     const wrapper = signatureCanvas.closest('.signature-wrapper');
-    if (wrapper) {
-        wrapper.style.borderStyle = interactive ? 'dashed' : 'solid';
-        wrapper.style.borderColor = interactive ? '' : 'var(--green)';
+    if (!wrapper) return;
+    if (editable) {
+        wrapper.style.borderStyle = 'dashed';
+        wrapper.style.borderColor = '';
+    } else {
+        wrapper.style.borderStyle = 'solid';
+        wrapper.style.borderColor = 'var(--green)';
     }
 }
 
@@ -57,6 +66,12 @@ function setupSignature() {
     signatureCtx.fillRect(0, 0, signatureCanvas.width, signatureCanvas.height);
 
     // Remove previous listeners
+    ['mousedown','mousemove','mouseup','mouseleave','touchstart','touchmove','touchend','touchcancel']
+        .forEach(ev => {
+            signatureCanvas.removeEventListener(ev, _startDrawing);
+            signatureCanvas.removeEventListener(ev, _draw);
+            signatureCanvas.removeEventListener(ev, _stopDrawing);
+        });
     signatureCanvas.removeEventListener('mousedown',  _startDrawing);
     signatureCanvas.removeEventListener('mousemove',  _draw);
     signatureCanvas.removeEventListener('mouseup',    _stopDrawing);
@@ -79,62 +94,53 @@ function setupSignature() {
     const firmaUrlDB    = sessionStorage.getItem('firma_url_db');
 
     if (firmaGuardada && firmaGuardada.length > 1000) {
-        // Restore in-session firma (user already drew this session)
-        const img  = new Image();
+        // Restore freshly drawn firma from this session
+        const img = new Image();
         img.onload = () => signatureCtx.drawImage(img, 0, 0);
-        img.src    = firmaGuardada;
+        img.src = firmaGuardada;
         _firmaReadOnly = false;
-        _setCanvasInteractive(true);
+        _applyCanvasState(true);
 
     } else if (firmaUrlDB) {
-        // Load existing firma from DB via server proxy (avoids CORS)
-        _loadFirmaFromDB(firmaUrlDB);
+        // Load existing firma from public GCS URL and display read-only
+        _loadFirmaDirectly(firmaUrlDB);
 
     } else {
-        // Brand new — allow drawing
         _firmaReadOnly = false;
-        _setCanvasInteractive(true);
+        _applyCanvasState(true);
     }
 }
 
-/* ── Load firma from server proxy ────────────────────────────────────────── */
-function _loadFirmaFromDB(firmaUrlDB) {
-    const id = sessionStorage.getItem('id_ingreso') || '';
-    if (!id) return;
+/* ── Load firma from public URL directly (bucket must be public) ─────────── */
+function _loadFirmaDirectly(url) {
+    const img = new Image();
 
-    fetch(`${API_URL_BASE}/hv/firma/${encodeURIComponent(id)}`)
-        .then(r => {
-            if (!r.ok) throw new Error(`HTTP ${r.status}`);
-            return r.json();
-        })
-        .then(data => {
-            if (!data.base64) return;
-            const img  = new Image();
-            img.onload = () => {
-                signatureCtx.drawImage(img, 0, 0, signatureCanvas.width, signatureCanvas.height);
-                // Save to firma_temp so validation passes
-                try {
-                    const b64 = signatureCanvas.toDataURL('image/png');
-                    if (b64 && b64.length > 1000) sessionStorage.setItem('firma_temp', b64);
-                } catch { /* security error on cross-origin canvas — ignore */ }
-                // Lock canvas
-                _firmaReadOnly = true;
-                _setCanvasInteractive(false);
-            };
-            img.src = data.base64;
-        })
-        .catch(err => {
-            console.warn('[SignatureView] Could not load firma from server:', err.message);
-            // Firma URL exists but image unavailable — keep unlocked so user can re-sign
-            _firmaReadOnly = false;
-            _setCanvasInteractive(true);
-        });
+    img.onload = () => {
+        try {
+            signatureCtx.drawImage(img, 0, 0, signatureCanvas.width, signatureCanvas.height);
+        } catch (e) {
+            // Canvas may become tainted — just visual, validation uses firma_url_db
+            console.warn('[SignatureView] Canvas draw error (tainted canvas):', e.message);
+        }
+        _firmaReadOnly = true;
+        _applyCanvasState(false);
+    };
+
+    img.onerror = () => {
+        console.warn('[SignatureView] Could not load firma image from URL — allowing redraw');
+        // firma_url_db still valid for submit; canvas stays unlocked
+        _firmaReadOnly = false;
+        _applyCanvasState(true);
+    };
+
+    // No crossOrigin — allows loading from public GCS (canvas may be tainted, OK for display)
+    img.src = url;
 }
 
-/* ── Drawing handlers ────────────────────────────────────────────────────── */
+/* ── Drawing ─────────────────────────────────────────────────────────────── */
 function _startDrawing(e) {
     e.preventDefault();
-    if (_firmaReadOnly) return; // locked — existing firma shown
+    if (_firmaReadOnly) return;
     drawingSignature = true;
     const pos = _getCoords(e);
     signatureCtx.beginPath();
@@ -167,7 +173,7 @@ function _saveSignature() {
         const b64 = signatureCanvas.toDataURL('image/png');
         if (b64 && b64.length > 1000) sessionStorage.setItem('firma_temp', b64);
     } catch (err) {
-        console.error('Error guardando firma:', err);
+        console.error('[SignatureView] Error saving firma:', err);
     }
 }
 

@@ -260,7 +260,9 @@ function initFormSubmit(form) {
             if (!validarFotoSiAplica()) throw new Error('Seleccionaste una foto, pero aún se está subiendo. Espera o elimina la foto para continuar.');
 
             const firmaGuardada = sessionStorage.getItem('firma_temp');
-            if (!firmaGuardada || firmaGuardada.length <= 200) {
+            const firmaUrlDB    = sessionStorage.getItem('firma_url_db');
+            const firmaValida   = (firmaGuardada && firmaGuardada.length > 200) || !!firmaUrlDB;
+            if (!firmaValida) {
                 const errorFirma = document.getElementById('error-firma');
                 if (errorFirma) errorFirma.textContent = 'Debes dibujar tu firma antes de enviar.';
                 throw new Error('La firma no está registrada. Vuelve al paso 2 y dibuja tu firma.');
@@ -307,8 +309,10 @@ function initFormSubmit(form) {
                 aspectos_mejorar: sanitizarString(get('seg_mejorar')),
                 resolucion_problemas: sanitizarString(get('seg_resolucion'))
             };
-            data.firma_base64 = firmaGuardada;
-            data.acepta_privacidad = 1; // acceptance confirmed at gate
+            // firma_base64: send only if user drew a new one this session.
+            // If returning user with firma_url_db, send empty — server keeps existing.
+            data.firma_base64 = firmaGuardada || '';
+            data.acepta_privacidad = 1;
 
             if (data.foto_public_url?.startsWith('data:image/')) delete data.foto_public_url;
             if (data.foto_gcs_path?.startsWith('data:')) delete data.foto_gcs_path;

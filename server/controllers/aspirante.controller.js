@@ -321,9 +321,10 @@ export async function registrarHV(req, res) {
             ));
         }
 
-        // Hijos: graceful insert — .catch() on the promise handles the async rejection
-        // (try/catch only catches synchronous errors; ER_NO_SUCH_TABLE is async)
+        // Hijos: graceful insert — .catch() handles the async ER_NO_SUCH_TABLE rejection
+        console.log(`[registrarHV] hijos payload: ${JSON.stringify(d.hijos || [])}`);
         const hijosRows = (d.hijos || []).filter(h => sanitizeStr(h.nombre_completo));
+        console.log(`[registrarHV] hijosRows to insert: ${hijosRows.length}`);
         if (hijosRows.length) {
             const vals = hijosRows.flatMap(h => [aspiranteId, sanitizeStr(h.nombre_completo), safeInt(h.edad, null) || null, safeInt(h.conviven_juntos, 1)]);
             const ph   = hijosRows.map(() => '(?,?,?,?)').join(',');
