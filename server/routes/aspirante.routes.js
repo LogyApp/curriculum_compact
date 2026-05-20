@@ -5,6 +5,7 @@ import {
     uploadPhoto,
     deleteFoto,
     registrarHV,
+    getFirmaImage,
 } from '../controllers/aspirante.controller.js';
 
 const upload = multer({
@@ -14,9 +15,10 @@ const upload = multer({
 
 const router = Router();
 
-router.get('/aspirante', getAspirante);
-router.post('/hv/registrar', registrarHV);
-router.post('/hv/upload-photo', upload.single('photo'), uploadPhoto);
+router.get('/aspirante',                  getAspirante);
+router.get('/hv/firma/:identificacion',   getFirmaImage);
+router.post('/hv/registrar',              registrarHV);
+router.post('/hv/upload-photo',           upload.single('photo'), uploadPhoto);
 router.delete('/hv/foto/:identificacion', deleteFoto);
 
 export default router;

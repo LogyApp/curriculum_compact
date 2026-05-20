@@ -36,17 +36,17 @@ export async function getAspirante(req, res) {
             query('SELECT * FROM Dynamic_hv_seguridad WHERE id_aspirante = ? LIMIT 1', [id]),
         ]);
 
-        // Hijos: separate query — graceful fallback if migration 002 not yet run
-        let hijos = [];
-        try {
-            hijos = await query('SELECT nombre_completo, edad, conviven_juntos FROM Dynamic_Aspirante_Hijos WHERE id_aspirante = ? ORDER BY fecha_registro', [id]);
-        } catch (hijosErr) {
-            if (hijosErr.code === 'ER_NO_SUCH_TABLE') {
+        // Hijos: separate query with .catch() so a missing table never kills the response
+        const hijos = await query(
+            'SELECT nombre_completo, edad, conviven_juntos FROM Dynamic_Aspirante_Hijos WHERE id_aspirante = ? ORDER BY fecha_registro',
+            [id]
+        ).catch(e => {
+            if (e.code === 'ER_NO_SUCH_TABLE') {
                 console.warn('[aspirante] Dynamic_Aspirante_Hijos not found — run migration 002');
-            } else {
-                throw hijosErr;
+                return [];
             }
-        }
+            throw e;
+        });
 
         res.json({
             existe: true,
@@ -95,6 +95,30 @@ export async function uploadPhoto(req, res) {
     } catch (err) {
         console.error('[aspirante] uploadPhoto:', err);
         res.status(500).json({ error: 'Error subiendo la foto' });
+    }
+}
+
+// ── GET /api/hv/firma/:identificacion — proxy for signature image ────────
+// Returns the stored signature from GCS as base64 so the frontend can
+// draw it on the canvas without CORS restrictions.
+
+export async function getFirmaImage(req, res) {
+    const { identificacion } = req.params;
+    if (!identificacion) return res.status(400).json({ error: 'Identificacion requerida' });
+    if (!bucketFirmas)    return res.status(503).json({ error: 'Servicio no disponible' });
+
+    try {
+        const firmaPath = `${identificacion}/firma.png`;
+        const file      = bucketFirmas.file(firmaPath);
+        const [exists]  = await file.exists();
+        if (!exists) return res.status(404).json({ error: 'No hay firma registrada' });
+
+        const [buffer]  = await file.download();
+        const base64    = buffer.toString('base64');
+        res.json({ base64: `data:image/png;base64,${base64}` });
+    } catch (err) {
+        console.error('[aspirante] getFirmaImage:', err);
+        res.status(500).json({ error: 'Error obteniendo la firma' });
     }
 }
 
@@ -241,12 +265,12 @@ export async function registrarHV(req, res) {
         ];
         await Promise.all(coreTables.map(t => conn.query(`DELETE FROM ${t} WHERE id_aspirante = ?`, [aspiranteId])));
 
-        // Hijos: graceful delete (table may not exist if migration 002 not run)
-        try {
-            await conn.query('DELETE FROM Dynamic_Aspirante_Hijos WHERE id_aspirante = ?', [aspiranteId]);
-        } catch (e) {
-            if (e.code !== 'ER_NO_SUCH_TABLE') throw e;
-        }
+        // Hijos: graceful delete with .catch() on the async rejection
+        await conn.query('DELETE FROM Dynamic_Aspirante_Hijos WHERE id_aspirante = ?', [aspiranteId])
+            .catch(e => {
+                if (e.code !== 'ER_NO_SUCH_TABLE') throw e;
+                console.warn('[aspirante] Dynamic_Aspirante_Hijos not found for delete');
+            });
 
         // ── Batch inserts run in parallel for maximum throughput ─────────────
         const insertions = [];
@@ -297,16 +321,22 @@ export async function registrarHV(req, res) {
             ));
         }
 
-        // Hijos: graceful insert (table may not exist until migration 002 is run)
+        // Hijos: graceful insert — .catch() on the promise handles the async rejection
+        // (try/catch only catches synchronous errors; ER_NO_SUCH_TABLE is async)
         const hijosRows = (d.hijos || []).filter(h => sanitizeStr(h.nombre_completo));
         if (hijosRows.length) {
-            try {
-                const vals = hijosRows.flatMap(h => [aspiranteId, sanitizeStr(h.nombre_completo), safeInt(h.edad, null) || null, safeInt(h.conviven_juntos, 1)]);
-                const ph   = hijosRows.map(() => '(?,?,?,?)').join(',');
-                insertions.push(conn.query(`INSERT INTO Dynamic_Aspirante_Hijos (id_aspirante,nombre_completo,edad,conviven_juntos) VALUES ${ph}`, vals));
-            } catch (e) {
-                if (e.code !== 'ER_NO_SUCH_TABLE') throw e;
-            }
+            const vals = hijosRows.flatMap(h => [aspiranteId, sanitizeStr(h.nombre_completo), safeInt(h.edad, null) || null, safeInt(h.conviven_juntos, 1)]);
+            const ph   = hijosRows.map(() => '(?,?,?,?)').join(',');
+            insertions.push(
+                conn.query(`INSERT INTO Dynamic_Aspirante_Hijos (id_aspirante,nombre_completo,edad,conviven_juntos) VALUES ${ph}`, vals)
+                    .catch(e => {
+                        if (e.code === 'ER_NO_SUCH_TABLE') {
+                            console.warn('[aspirante] Dynamic_Aspirante_Hijos not found — run migration 002');
+                        } else {
+                            throw e;
+                        }
+                    })
+            );
         }
 
         // Run all inserts in parallel within the transaction
