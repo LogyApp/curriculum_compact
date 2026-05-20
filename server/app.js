@@ -11,10 +11,11 @@ import zlib from 'zlib';
 import { pipeline } from 'stream';
 import { fileURLToPath } from 'url';
 
-import { rateLimit } from './utils/rateLimit.js';
-import configRoutes from './routes/config.routes.js';
-import aspiranteRoutes from './routes/aspirante.routes.js';
-import correoRoutes from './routes/correo.routes.js';
+import { rateLimit }            from './utils/rateLimit.js';
+import { runStartupMigrations } from './config/database.js';
+import configRoutes             from './routes/config.routes.js';
+import aspiranteRoutes          from './routes/aspirante.routes.js';
+import correoRoutes             from './routes/correo.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -119,9 +120,11 @@ export default app;
 if (process.argv[1] && process.argv[1].endsWith('app.js')) {
     const PORT = parseInt(process.env.PORT || '8080');
 
-    const server = app.listen(PORT, () => {
+    const server = app.listen(PORT, async () => {
         console.log(`[server] Running on port ${PORT} | PID ${process.pid}`);
         console.log(`[server] Environment: ${process.env.K_SERVICE ? 'Cloud Run' : 'local'}`);
+        // Ensure all required tables exist (idempotent — safe to run on every deploy)
+        await runStartupMigrations();
     });
 
     // Keep-alive timeout > load balancer idle timeout (Cloud Run = 620 s)

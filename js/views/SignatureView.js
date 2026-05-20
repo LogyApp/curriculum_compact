@@ -35,15 +35,17 @@ function _applyCanvasState(editable) {
     if (!signatureCanvas) return;
     signatureCanvas.style.cursor  = editable ? 'crosshair' : 'default';
     signatureCanvas.style.opacity = editable ? '1' : '0.92';
+
     const wrapper = signatureCanvas.closest('.signature-wrapper');
-    if (!wrapper) return;
-    if (editable) {
-        wrapper.style.borderStyle = 'dashed';
-        wrapper.style.borderColor = '';
-    } else {
-        wrapper.style.borderStyle = 'solid';
-        wrapper.style.borderColor = 'var(--green)';
+    if (wrapper) {
+        wrapper.style.borderStyle = editable ? 'dashed' : 'solid';
+        wrapper.style.borderColor = editable ? ''         : 'var(--green)';
     }
+
+    // Hide "Limpiar firma" button when an existing firma is shown (read-only)
+    const actions = signatureCanvas.closest('.form-section-body')
+                  ?.querySelector('.signature-actions');
+    if (actions) actions.style.display = editable ? '' : 'none';
 }
 
 /* ── Setup ───────────────────────────────────────────────────────────────── */
