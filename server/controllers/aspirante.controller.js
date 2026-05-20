@@ -321,27 +321,26 @@ export async function registrarHV(req, res) {
             ));
         }
 
-        // Hijos: graceful insert — .catch() handles the async ER_NO_SUCH_TABLE rejection
-        console.log(`[registrarHV] hijos payload: ${JSON.stringify(d.hijos || [])}`);
-        const hijosRows = (d.hijos || []).filter(h => sanitizeStr(h.nombre_completo));
-        console.log(`[registrarHV] hijosRows to insert: ${hijosRows.length}`);
-        if (hijosRows.length) {
-            const vals = hijosRows.flatMap(h => [aspiranteId, sanitizeStr(h.nombre_completo), safeInt(h.edad, null) || null, safeInt(h.conviven_juntos, 1)]);
-            const ph   = hijosRows.map(() => '(?,?,?,?)').join(',');
-            insertions.push(
-                conn.query(`INSERT INTO Dynamic_Aspirante_Hijos (id_aspirante,nombre_completo,edad,conviven_juntos) VALUES ${ph}`, vals)
-                    .catch(e => {
-                        if (e.code === 'ER_NO_SUCH_TABLE') {
-                            console.warn('[aspirante] Dynamic_Aspirante_Hijos not found — run migration 002');
-                        } else {
-                            throw e;
-                        }
-                    })
-            );
-        }
-
-        // Run all inserts in parallel within the transaction
+        // Run all other inserts in parallel
         await Promise.all(insertions);
+
+        // Hijos: sequential awaited inserts — simpler and more reliable than batch+.catch()
+        for (const h of (d.hijos || [])) {
+            const nombre = sanitizeStr(h.nombre_completo);
+            if (!nombre) continue;
+            try {
+                await conn.query(
+                    'INSERT INTO Dynamic_Aspirante_Hijos (id_aspirante, nombre_completo, edad, conviven_juntos) VALUES (?, ?, ?, ?)',
+                    [aspiranteId, nombre, h.edad ? safeInt(h.edad) : null, safeInt(h.conviven_juntos, 1)]
+                );
+            } catch (e) {
+                if (e.code === 'ER_NO_SUCH_TABLE') {
+                    console.warn('[aspirante] Dynamic_Aspirante_Hijos missing — run migration 002');
+                    break;
+                }
+                throw e;
+            }
+        }
 
         await conn.commit();
 

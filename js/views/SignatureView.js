@@ -133,8 +133,8 @@ function _loadFirmaDirectly(url) {
         _applyCanvasState(true);
     };
 
-    // No crossOrigin — allows loading from public GCS (canvas may be tainted, OK for display)
-    img.src = url;
+    // Append timestamp to bust browser cache — GCS ignores unknown query params for public objects
+    img.src = url.includes('?') ? `${url}&_t=${Date.now()}` : `${url}?_t=${Date.now()}`;
 }
 
 /* ── Drawing ─────────────────────────────────────────────────────────────── */
