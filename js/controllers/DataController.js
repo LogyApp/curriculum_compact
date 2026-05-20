@@ -49,6 +49,13 @@ async function rellenarFormulario(a) {
             if (edadInput) edadInput.value = calcularEdadDesdeFecha(aspirante.fecha_nacimiento);
             set('fecha_expedicion', aspirante.fecha_expedicion ? aspirante.fecha_expedicion.split('T')[0] : '');
             rellenarFotoDesdeAspirante(aspirante);
+
+            // Firma existente — store URL so validation and SignatureView can use it
+            if (aspirante.firma_url) {
+                sessionStorage.setItem('firma_url_db', aspirante.firma_url);
+            } else {
+                sessionStorage.removeItem('firma_url_db');
+            }
         }
 
         if (aspirante?.departamento_expedicion) {
@@ -335,6 +342,7 @@ function resetFormToInitialState() {
         sessionStorage.removeItem('tipo_ingreso');
         sessionStorage.removeItem('id_ingreso');
         sessionStorage.removeItem('firma_temp');
+        sessionStorage.removeItem('firma_url_db');
         sessionStorage.removeItem('aspirante_data');
         sessionStorage.removeItem('fecha_expedicion_ingreso');
 

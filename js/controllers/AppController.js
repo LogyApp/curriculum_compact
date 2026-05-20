@@ -109,7 +109,8 @@ function afterGateSuccess() {
     if (hidTipo) hidTipo.value = tipo;
     if (hidIdent) hidIdent.value = id;
 
-    // Clear firma from any previous session — must sign fresh every time
+    // firma_temp cleared always; firma_url_db preserved for returning users
+    // (removed only when clearSignature() is called or form is reset)
     sessionStorage.removeItem('firma_temp');
 
     // Transition: hide gate, reveal app-header + form
@@ -124,7 +125,7 @@ function afterGateSuccess() {
 function reiniciarVerificacion() {
     // Clear all session state
     ['tipo_ingreso', 'id_ingreso', 'firma_temp', 'aspirante_data',
-        'fecha_expedicion_ingreso', 'is_returning_user']
+        'fecha_expedicion_ingreso', 'is_returning_user', 'firma_url_db']
         .forEach(k => sessionStorage.removeItem(k));
 
     // Reset hidden identification fields

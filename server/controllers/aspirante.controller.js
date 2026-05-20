@@ -24,16 +24,29 @@ export async function getAspirante(req, res) {
 
         const id = aspirante.id_aspirante;
 
-        const [educacion, experiencia, hijos, familiares, referencias, [contactoEmergencia], [metas], [seguridad]] = await Promise.all([
+        // Run all queries in parallel — hijos is isolated to avoid failing the whole response
+        // if the migration has not been executed yet (ER_NO_SUCH_TABLE)
+        const [educacion, experiencia, familiares, referencias, [contactoEmergencia], [metas], [seguridad]] = await Promise.all([
             query('SELECT institucion, programa, nivel_escolaridad, modalidad, ano, finalizado FROM Dynamic_hv_educacion WHERE id_aspirante = ? ORDER BY fecha_registro', [id]),
             query('SELECT empresa, cargo, ano_experiencia, tiempo_laborado, salario, motivo_retiro, funciones FROM Dynamic_hv_experiencia_laboral WHERE id_aspirante = ? ORDER BY fecha_registro', [id]),
-            query('SELECT nombre_completo, edad, conviven_juntos FROM Dynamic_Aspirante_Hijos WHERE id_aspirante = ? ORDER BY fecha_registro', [id]),
             query('SELECT nombre_completo, parentesco, edad, ocupacion, conviven_juntos FROM Dynamic_hv_familiares WHERE id_aspirante = ? ORDER BY fecha_registro', [id]),
             query('SELECT tipo_referencia, nombre_completo, telefono, ocupacion, empresa, jefe_inmediato, cargo_jefe FROM Dynamic_hv_referencias WHERE id_aspirante = ? ORDER BY fecha_registro', [id]),
             query('SELECT nombre_completo, parentesco, telefono, correo_electronico, direccion FROM Dynamic_hv_contacto_emergencia WHERE id_aspirante = ? LIMIT 1', [id]),
             query('SELECT meta_corto_plazo, meta_mediano_plazo, meta_largo_plazo FROM Dynamic_hv_metas_personales WHERE id_aspirante = ? LIMIT 1', [id]),
             query('SELECT * FROM Dynamic_hv_seguridad WHERE id_aspirante = ? LIMIT 1', [id]),
         ]);
+
+        // Hijos: separate query — graceful fallback if migration 002 not yet run
+        let hijos = [];
+        try {
+            hijos = await query('SELECT nombre_completo, edad, conviven_juntos FROM Dynamic_Aspirante_Hijos WHERE id_aspirante = ? ORDER BY fecha_registro', [id]);
+        } catch (hijosErr) {
+            if (hijosErr.code === 'ER_NO_SUCH_TABLE') {
+                console.warn('[aspirante] Dynamic_Aspirante_Hijos not found — run migration 002');
+            } else {
+                throw hijosErr;
+            }
+        }
 
         res.json({
             existe: true,
@@ -220,117 +233,100 @@ export async function registrarHV(req, res) {
             );
         }
 
-        // Delete child records (full replace strategy)
-        const childTables = [
+        // Delete child records in parallel (full replace strategy)
+        const coreTables = [
             'Dynamic_hv_educacion', 'Dynamic_hv_experiencia_laboral',
-            'Dynamic_Aspirante_Hijos', 'Dynamic_hv_familiares',
-            'Dynamic_hv_referencias', 'Dynamic_hv_contacto_emergencia',
-            'Dynamic_hv_metas_personales', 'Dynamic_hv_seguridad'
+            'Dynamic_hv_familiares', 'Dynamic_hv_referencias',
+            'Dynamic_hv_contacto_emergencia', 'Dynamic_hv_metas_personales', 'Dynamic_hv_seguridad'
         ];
-        for (const table of childTables) {
-            await conn.query(`DELETE FROM ${table} WHERE id_aspirante = ?`, [aspiranteId]);
+        await Promise.all(coreTables.map(t => conn.query(`DELETE FROM ${t} WHERE id_aspirante = ?`, [aspiranteId])));
+
+        // Hijos: graceful delete (table may not exist if migration 002 not run)
+        try {
+            await conn.query('DELETE FROM Dynamic_Aspirante_Hijos WHERE id_aspirante = ?', [aspiranteId]);
+        } catch (e) {
+            if (e.code !== 'ER_NO_SUCH_TABLE') throw e;
         }
 
-        // Insert educacion
-        for (const e of (d.educacion || [])) {
-            if (!sanitizeStr(e.institucion) && !sanitizeStr(e.programa)) continue;
-            await conn.query(
-                'INSERT INTO Dynamic_hv_educacion (id_aspirante, institucion, programa, nivel_escolaridad, modalidad, ano, finalizado) VALUES (?,?,?,?,?,?,?)',
-                [aspiranteId, sanitizeStr(e.institucion), sanitizeStr(e.programa), sanitizeStr(e.nivel_escolaridad), sanitizeStr(e.modalidad), safeInt(e.ano, null), safeInt(e.finalizado, 1)]
-            );
+        // ── Batch inserts run in parallel for maximum throughput ─────────────
+        const insertions = [];
+
+        const educRows = (d.educacion || []).filter(e => sanitizeStr(e.institucion) || sanitizeStr(e.programa));
+        if (educRows.length) {
+            const vals = educRows.flatMap(e => [aspiranteId, sanitizeStr(e.institucion), sanitizeStr(e.programa), sanitizeStr(e.nivel_escolaridad), sanitizeStr(e.modalidad), safeInt(e.ano, null), safeInt(e.finalizado, 1)]);
+            const ph   = educRows.map(() => '(?,?,?,?,?,?,?)').join(',');
+            insertions.push(conn.query(`INSERT INTO Dynamic_hv_educacion (id_aspirante,institucion,programa,nivel_escolaridad,modalidad,ano,finalizado) VALUES ${ph}`, vals));
         }
 
-        // Insert experiencia
-        for (const x of (d.experiencia_laboral || [])) {
-            if (!sanitizeStr(x.empresa) && !sanitizeStr(x.cargo)) continue;
-            await conn.query(
-                'INSERT INTO Dynamic_hv_experiencia_laboral (id_aspirante, empresa, cargo, ano_experiencia, tiempo_laborado, salario, motivo_retiro, funciones) VALUES (?,?,?,?,?,?,?,?)',
-                [aspiranteId, sanitizeStr(x.empresa), sanitizeStr(x.cargo), safeInt(x.ano_experiencia, null), sanitizeStr(x.tiempo_laborado), sanitizeStr(x.salario), sanitizeStr(x.motivo_retiro), sanitizeStr(x.funciones)]
-            );
+        const expRows = (d.experiencia_laboral || []).filter(x => sanitizeStr(x.empresa) || sanitizeStr(x.cargo));
+        if (expRows.length) {
+            const vals = expRows.flatMap(x => [aspiranteId, sanitizeStr(x.empresa), sanitizeStr(x.cargo), safeInt(x.ano_experiencia, null), sanitizeStr(x.tiempo_laborado), sanitizeStr(x.salario), sanitizeStr(x.motivo_retiro), sanitizeStr(x.funciones)]);
+            const ph   = expRows.map(() => '(?,?,?,?,?,?,?,?)').join(',');
+            insertions.push(conn.query(`INSERT INTO Dynamic_hv_experiencia_laboral (id_aspirante,empresa,cargo,ano_experiencia,tiempo_laborado,salario,motivo_retiro,funciones) VALUES ${ph}`, vals));
         }
 
-        // Insert hijos (optional)
-        for (const h of (d.hijos || [])) {
-            if (!sanitizeStr(h.nombre_completo)) continue;
-            await conn.query(
-                'INSERT INTO Dynamic_Aspirante_Hijos (id_aspirante, nombre_completo, edad, conviven_juntos) VALUES (?,?,?,?)',
-                [aspiranteId, sanitizeStr(h.nombre_completo), safeInt(h.edad, null) || null, safeInt(h.conviven_juntos, 1)]
-            );
+        const famRows = (d.familiares || []).filter(f => sanitizeStr(f.nombre_completo) || sanitizeStr(f.parentesco));
+        if (famRows.length) {
+            const vals = famRows.flatMap(f => [aspiranteId, sanitizeStr(f.nombre_completo), sanitizeStr(f.parentesco), safeInt(f.edad, null), sanitizeStr(f.ocupacion), safeInt(f.conviven_juntos, 1)]);
+            const ph   = famRows.map(() => '(?,?,?,?,?,?)').join(',');
+            insertions.push(conn.query(`INSERT INTO Dynamic_hv_familiares (id_aspirante,nombre_completo,parentesco,edad,ocupacion,conviven_juntos) VALUES ${ph}`, vals));
         }
 
-        // Insert familiares
-        for (const f of (d.familiares || [])) {
-            if (!sanitizeStr(f.nombre_completo) && !sanitizeStr(f.parentesco)) continue;
-            await conn.query(
-                'INSERT INTO Dynamic_hv_familiares (id_aspirante, nombre_completo, parentesco, edad, ocupacion, conviven_juntos) VALUES (?,?,?,?,?,?)',
-                [aspiranteId, sanitizeStr(f.nombre_completo), sanitizeStr(f.parentesco), safeInt(f.edad, null), sanitizeStr(f.ocupacion), safeInt(f.conviven_juntos, 1)]
-            );
+        const refRows = (d.referencias || []).filter(r => r.tipo_referencia);
+        if (refRows.length) {
+            const vals = refRows.flatMap(r => [aspiranteId, sanitizeStr(r.tipo_referencia), sanitizeStr(r.empresa), sanitizeStr(r.jefe_inmediato), sanitizeStr(r.cargo_jefe), sanitizeStr(r.nombre_completo), digitsOnly(r.telefono), sanitizeStr(r.ocupacion)]);
+            const ph   = refRows.map(() => '(?,?,?,?,?,?,?,?)').join(',');
+            insertions.push(conn.query(`INSERT INTO Dynamic_hv_referencias (id_aspirante,tipo_referencia,empresa,jefe_inmediato,cargo_jefe,nombre_completo,telefono,ocupacion) VALUES ${ph}`, vals));
         }
 
-        // Insert referencias
-        for (const r of (d.referencias || [])) {
-            await conn.query(
-                'INSERT INTO Dynamic_hv_referencias (id_aspirante, tipo_referencia, empresa, jefe_inmediato, cargo_jefe, nombre_completo, telefono, ocupacion) VALUES (?,?,?,?,?,?,?,?)',
-                [aspiranteId, sanitizeStr(r.tipo_referencia), sanitizeStr(r.empresa), sanitizeStr(r.jefe_inmediato), sanitizeStr(r.cargo_jefe), sanitizeStr(r.nombre_completo), digitsOnly(r.telefono), sanitizeStr(r.ocupacion)]
-            );
-        }
-
-        // Insert contacto emergencia
         if (d.contacto_emergencia) {
             const ce = d.contacto_emergencia;
-            await conn.query(
-                'INSERT INTO Dynamic_hv_contacto_emergencia (id_aspirante, nombre_completo, parentesco, telefono, correo_electronico, direccion) VALUES (?,?,?,?,?,?)',
-                [aspiranteId, sanitizeStr(ce.nombre_completo), sanitizeStr(ce.parentesco), digitsOnly(ce.telefono), sanitizeStr(ce.correo_electronico), sanitizeStr(ce.direccion)]
-            );
+            insertions.push(conn.query('INSERT INTO Dynamic_hv_contacto_emergencia (id_aspirante,nombre_completo,parentesco,telefono,correo_electronico,direccion) VALUES (?,?,?,?,?,?)', [aspiranteId, sanitizeStr(ce.nombre_completo), sanitizeStr(ce.parentesco), digitsOnly(ce.telefono), sanitizeStr(ce.correo_electronico), sanitizeStr(ce.direccion)]));
         }
 
-        // Insert metas
         if (d.metas_personales) {
             const mp = d.metas_personales;
-            await conn.query(
-                'INSERT INTO Dynamic_hv_metas_personales (id_aspirante, meta_corto_plazo, meta_mediano_plazo, meta_largo_plazo) VALUES (?,?,?,?)',
-                [aspiranteId, sanitizeStr(mp.meta_corto_plazo), sanitizeStr(mp.meta_mediano_plazo), sanitizeStr(mp.meta_largo_plazo)]
-            );
+            insertions.push(conn.query('INSERT INTO Dynamic_hv_metas_personales (id_aspirante,meta_corto_plazo,meta_mediano_plazo,meta_largo_plazo) VALUES (?,?,?,?)', [aspiranteId, sanitizeStr(mp.meta_corto_plazo), sanitizeStr(mp.meta_mediano_plazo), sanitizeStr(mp.meta_largo_plazo)]));
         }
 
-        // Insert seguridad
         if (d.seguridad) {
             const s = d.seguridad;
-            await conn.query(
-                `INSERT INTO Dynamic_hv_seguridad
-                 (id_aspirante, llamados_atencion, detalle_llamados, accidente_laboral, detalle_accidente,
-                  enfermedad_importante, detalle_enfermedad, consume_alcohol, frecuencia_alcohol,
-                  familiar_en_empresa, detalle_familiar_empresa, info_falsa, acepta_poligrafo,
-                  observaciones, califica_para_cargo, fortalezas, aspectos_mejorar, resolucion_problemas)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-                [aspiranteId,
-                    safeInt(s.llamados_atencion), sanitizeStr(s.detalle_llamados),
-                    safeInt(s.accidente_laboral), sanitizeStr(s.detalle_accidente),
-                    safeInt(s.enfermedad_importante), sanitizeStr(s.detalle_enfermedad),
-                    safeInt(s.consume_alcohol), sanitizeStr(s.frecuencia_alcohol),
-                    safeInt(s.familiar_en_empresa), sanitizeStr(s.detalle_familiar_empresa),
-                    safeInt(s.info_falsa), safeInt(s.acepta_poligrafo),
-                    sanitizeStr(s.observaciones), sanitizeStr(s.califica_para_cargo),
-                    sanitizeStr(s.fortalezas), sanitizeStr(s.aspectos_mejorar), sanitizeStr(s.resolucion_problemas)]
-            );
+            insertions.push(conn.query(
+                `INSERT INTO Dynamic_hv_seguridad (id_aspirante,llamados_atencion,detalle_llamados,accidente_laboral,detalle_accidente,enfermedad_importante,detalle_enfermedad,consume_alcohol,frecuencia_alcohol,familiar_en_empresa,detalle_familiar_empresa,info_falsa,acepta_poligrafo,observaciones,califica_para_cargo,fortalezas,aspectos_mejorar,resolucion_problemas) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+                [aspiranteId, safeInt(s.llamados_atencion), sanitizeStr(s.detalle_llamados), safeInt(s.accidente_laboral), sanitizeStr(s.detalle_accidente), safeInt(s.enfermedad_importante), sanitizeStr(s.detalle_enfermedad), safeInt(s.consume_alcohol), sanitizeStr(s.frecuencia_alcohol), safeInt(s.familiar_en_empresa), sanitizeStr(s.detalle_familiar_empresa), safeInt(s.info_falsa), safeInt(s.acepta_poligrafo), sanitizeStr(s.observaciones), sanitizeStr(s.califica_para_cargo), sanitizeStr(s.fortalezas), sanitizeStr(s.aspectos_mejorar), sanitizeStr(s.resolucion_problemas)]
+            ));
         }
 
-        // Upload signature
+        // Hijos: graceful insert (table may not exist until migration 002 is run)
+        const hijosRows = (d.hijos || []).filter(h => sanitizeStr(h.nombre_completo));
+        if (hijosRows.length) {
+            try {
+                const vals = hijosRows.flatMap(h => [aspiranteId, sanitizeStr(h.nombre_completo), safeInt(h.edad, null) || null, safeInt(h.conviven_juntos, 1)]);
+                const ph   = hijosRows.map(() => '(?,?,?,?)').join(',');
+                insertions.push(conn.query(`INSERT INTO Dynamic_Aspirante_Hijos (id_aspirante,nombre_completo,edad,conviven_juntos) VALUES ${ph}`, vals));
+            } catch (e) {
+                if (e.code !== 'ER_NO_SUCH_TABLE') throw e;
+            }
+        }
+
+        // Run all inserts in parallel within the transaction
+        await Promise.all(insertions);
+
+        await conn.commit();
+
+        // ── Firma upload — runs after commit so it never blocks the transaction ──
         if (d.firma_base64 && bucketFirmas) {
             try {
                 const base64Data = d.firma_base64.replace(/^data:image\/\w+;base64,/, '');
-                const buffer = Buffer.from(base64Data, 'base64');
-                const firmaPath = `${id}/firma.png`;
-                const firmaFile = bucketFirmas.file(firmaPath);
-                await firmaFile.save(buffer, { contentType: 'image/png', resumable: false });
+                const buffer     = Buffer.from(base64Data, 'base64');
+                const firmaPath  = `${id}/firma.png`;
+                await bucketFirmas.file(firmaPath).save(buffer, { contentType: 'image/png', resumable: false });
                 const firmaUrl = `https://storage.googleapis.com/${GCS_BUCKET_FIRMAS}/${firmaPath}`;
-                await conn.query('UPDATE Dynamic_hv_aspirante SET firma_url = ? WHERE id_aspirante = ?', [firmaUrl, aspiranteId]);
+                await query('UPDATE Dynamic_hv_aspirante SET firma_url = ? WHERE id_aspirante = ?', [firmaUrl, aspiranteId]);
             } catch (firmaErr) {
                 console.warn('[aspirante] Signature upload failed:', firmaErr.message);
             }
         }
-
-        await conn.commit();
 
         // Post-commit: generate PDF and send email (async, don't block response)
         setImmediate(async () => {

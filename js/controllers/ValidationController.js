@@ -69,11 +69,13 @@ function validateStep(stepIndex) {
 
         // Firma — mandatory, must have real drawn content (> 5000 chars ensures
         // it's not an empty/blank canvas, whose base64 can still reach ~2-3 KB)
-        const firma = sessionStorage.getItem('firma_temp');
+        const firma      = sessionStorage.getItem('firma_temp');
+        const firmaUrlDB = sessionStorage.getItem('firma_url_db'); // existing from DB
         const sigSection = document.querySelector('.signature-wrapper')?.closest('.form-section') ||
             document.querySelector('.signature-wrapper');
-        const errorFirma = document.getElementById('error-firma');
-        const firmaValida = firma && firma.length > 5000;
+        const errorFirma  = document.getElementById('error-firma');
+        // Valid if: newly drawn (firma_temp > 5000 chars) OR previously registered (firma_url_db)
+        const firmaValida = (firma && firma.length > 5000) || !!firmaUrlDB;
 
         if (!firmaValida) {
             valid = false;

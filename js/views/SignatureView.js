@@ -10,6 +10,9 @@ window.clearSignature = function () {
     signatureCtx.fillStyle = '#ffffff';
     signatureCtx.fillRect(0, 0, signatureCanvas.width, signatureCanvas.height);
     sessionStorage.removeItem('firma_temp');
+    sessionStorage.removeItem('firma_url_db');
+    const badge = document.getElementById('firma-existente-badge');
+    if (badge) badge.style.display = 'none';
     const errorFirma = document.getElementById('error-firma');
     if (errorFirma) errorFirma.textContent = '';
 };
@@ -39,6 +42,11 @@ function setupSignature() {
         img.onload = () => signatureCtx.drawImage(img, 0, 0);
         img.src = firmaGuardada;
     }
+
+    // Show badge if aspirant has a signature from previous registration
+    const firmaUrlDB = sessionStorage.getItem('firma_url_db');
+    const badge = document.getElementById('firma-existente-badge');
+    if (badge) badge.style.display = (firmaUrlDB && !firmaGuardada) ? 'flex' : 'none';
 
     // Remove previous listeners to avoid duplicates
     signatureCanvas.removeEventListener('mousedown', _startDrawing);
