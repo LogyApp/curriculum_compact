@@ -159,7 +159,7 @@
         </nav>
 
         <!-- ── FORM ───────────────────────────────────────────────────────── -->
-        <form id="hv-form">
+        <form id="hv-form" novalidate>
 
           <!-- ── PASO 0: INGRESO ──────────────────────────────────────────── -->
           <div class="form-step active" data-step="0">
@@ -481,8 +481,8 @@
                   </div>
                   <div class="fg">
                     <label class="flbl" for="talla_pantalon">Talla pantalón <span class="required">*</span></label>
-                    <input type="number" id="talla_pantalon" name="talla_pantalon" class="fi" data-required="true"
-                      min="24" max="50" placeholder="28" />
+                    <input type="text" id="talla_pantalon" name="talla_pantalon" class="fi" data-required="true"
+                      inputmode="numeric" placeholder="28" />
                     <div class="field-error" id="error-talla_pantalon"></div>
                   </div>
                   <div class="fg">
@@ -492,8 +492,8 @@
                   </div>
                   <div class="fg">
                     <label class="flbl" for="zapatos_talla">Talla zapatos <span class="required">*</span></label>
-                    <input type="number" id="zapatos_talla" name="zapatos_talla" class="fi" data-required="true"
-                      min="34" max="50" placeholder="40" />
+                    <input type="text" id="zapatos_talla" name="zapatos_talla" class="fi" data-required="true"
+                      inputmode="numeric" placeholder="40" />
                     <div class="field-error" id="error-zapatos_talla"></div>
                   </div>
                 </div>
@@ -1039,7 +1039,65 @@
     </div><!-- /.privacy-modal-card -->
   </div><!-- /#politicaPrivacidadModal -->
 
-  <!-- ── Scripts: MVC load order ──────────────────────────────────────────── -->
+  <!-- ── Success overlay ────────────────────────────────────────────────────── -->
+<div id="success-overlay" class="success-overlay" aria-hidden="true" role="dialog"
+  aria-labelledby="success-title" aria-modal="true" style="display:none;">
+  <div class="success-card">
+
+    <div class="success-icon-wrap">
+      <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="20 6 9 17 4 12"/>
+      </svg>
+    </div>
+
+    <div class="success-brand">Logyser S.A.S</div>
+    <div class="success-title" id="success-title">Registro exitoso</div>
+    <div class="success-sub" id="success-sub">Tu hoja de vida ha sido registrada correctamente.</div>
+
+    <div id="success-meta" class="success-meta" style="display:none;">
+      <span class="success-meta-label">Número registrado</span>
+      <span class="success-meta-val" id="success-id"></span>
+    </div>
+
+    <button id="btn-success-volver" class="btn btn-primary" style="width:100%; justify-content:center; margin-top:8px; font-size:14px; padding:12px;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+        <polyline points="9 22 9 12 15 12 15 22"/>
+      </svg>
+      Volver al inicio
+    </button>
+
+  </div>
+</div>
+
+<!-- ── App toast (replaces browser alert) ────────────────────────────────── -->
+<div id="app-toast" class="app-toast" aria-hidden="true" role="alert" style="display:none;">
+  <div id="app-toast-icon" class="app-toast-icon"></div>
+  <div id="app-toast-msg" class="app-toast-msg"></div>
+  <button id="btn-app-toast-close" class="app-toast-close" aria-label="Cerrar">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+    </svg>
+  </button>
+</div>
+
+<!-- ── App dialog (replaces browser confirm) ─────────────────────────────── -->
+<div id="app-dialog" class="app-dialog-backdrop" aria-hidden="true" role="dialog"
+  aria-modal="true" style="display:none;">
+  <div class="app-dialog-card">
+    <div class="app-dialog-title" id="app-dialog-title">¿Confirmar acción?</div>
+    <div class="app-dialog-body" id="app-dialog-body"></div>
+    <div class="app-dialog-actions">
+      <button id="btn-app-dialog-cancel" class="btn btn-ghost">Cancelar</button>
+      <button id="btn-app-dialog-confirm" class="btn btn-primary">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Scripts: MVC load order ──────────────────────────────────────────── -->
   <script src="./js/config.js"></script>
   <script src="./js/models/FormModel.js"></script>
   <script src="./js/models/ApiModel.js"></script>
@@ -1047,6 +1105,7 @@
   <script src="./js/views/SignatureView.js"></script>
   <script src="./js/views/DynamicView.js"></script>
   <script src="./js/views/PreviewView.js"></script>
+  <script src="./js/views/NotificationView.js"></script>
   <script src="./js/controllers/ValidationController.js"></script>
   <script src="./js/controllers/DataController.js"></script>
   <script src="./js/controllers/PhotoController.js"></script>

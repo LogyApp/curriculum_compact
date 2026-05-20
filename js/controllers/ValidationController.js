@@ -14,7 +14,7 @@ function validateStep(stepIndex) {
     const selects = stepElement.querySelectorAll('select');
     for (const sel of selects) {
         if (sel.getAttribute('data-required') === 'true' && sel.options.length <= 1 && sel.innerText.includes('Cargando')) {
-            alert('Algunos datos no cargaron por falla de conexión. Por favor recarga la página.');
+            showAppToast('Algunos datos no cargaron por falla de conexión. Por favor recarga la página.', 'warning');
             return false;
         }
     }

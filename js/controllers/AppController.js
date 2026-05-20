@@ -322,8 +322,10 @@ function initFormSubmit(form) {
 
             if (resp.ok && (result.ok || result.success)) {
                 sessionStorage.removeItem('firma_temp');
-                alert('Hoja de vida registrada correctamente.');
-                resetFormToInitialState();
+                const aspiranteId = sessionStorage.getItem('id_ingreso') || data.identificacion || '';
+                const wasNew      = result.isNew !== undefined ? result.isNew : !sessionStorage.getItem('aspirante_data');
+                showSuccessModal({ isNew: wasNew, identificacion: aspiranteId });
+                // resetFormToInitialState is called by "Volver al inicio" button in the success modal
             } else {
                 throw new Error('No pudimos registrar tu hoja de vida. Por favor intenta de nuevo.');
             }
@@ -526,6 +528,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Setup privacy policy modal
     initPrivacyModal();
+
+    // Setup notification system (success overlay + toast)
+    initNotifications();
 
     // Gate is shown by default (form-area + app-header start hidden)
     // afterGateSuccess() reveals the form when verification passes

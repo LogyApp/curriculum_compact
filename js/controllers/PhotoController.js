@@ -174,7 +174,7 @@ function initPhotoController() {
     // Remove photo: open modal
     if (btnRemove) {
         btnRemove.addEventListener('click', () => {
-            if (!modalBack) { if (confirm('¿Eliminar la foto?')) clearPhotoLocal(); return; }
+            if (!modalBack) { clearPhotoLocal(); return; } // fallback: just clear without confirm
             modalBack.classList.add('visible');
             modalBack.setAttribute('aria-hidden', 'false');
             modalConfirm?.focus();
@@ -197,7 +197,7 @@ function initPhotoController() {
 
                 let identVal = (document.getElementById('identificacion')?.value || '').trim();
                 if (!identVal) identVal = sessionStorage.getItem('id_ingreso') || '';
-                if (!identVal) { clearPhotoLocal(); alert('Foto eliminada localmente. No se encontró identificación para borrar en servidor.'); return; }
+                if (!identVal) { clearPhotoLocal(); showAppToast('Foto eliminada de la vista. No se encontró identificación para borrar en el servidor.', 'info'); return; }
 
                 const { gcsPath } = getFotoHidden();
                 if (gcsPath) {
@@ -214,7 +214,7 @@ function initPhotoController() {
                 if (status) status.textContent = 'Foto eliminada.';
             } catch (err) {
                 console.error('Error eliminando foto:', err);
-                alert('No se pudo eliminar la foto del servidor: ' + (err?.message || err));
+                showAppToast('No se pudo eliminar la foto del servidor: ' + (err?.message || err), 'error');
                 const status = document.getElementById('photo-status');
                 if (status) status.textContent = 'Error al eliminar.';
             } finally {
