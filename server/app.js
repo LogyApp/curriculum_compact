@@ -72,11 +72,12 @@ app.use((req, res, next) => {
 // General API: 300 req / 1 min per IP
 const generalLimit = rateLimit({ max: 300, windowMs: 60 * 1000 });
 
-// Registration endpoint: 10 req / 5 min (expensive: DB write + PDF + email)
+// Registration endpoint: 20 req / 1 hour per IP
+// One person legitimately won't submit their CV 20 times in an hour
 const registrarLimit = rateLimit({
-    max: 10,
-    windowMs: 5 * 60 * 1000,
-    message: 'Límite de registros alcanzado. Por favor espera 5 minutos antes de intentar de nuevo.',
+    max: 20,
+    windowMs: 60 * 60 * 1000,
+    message: 'Límite de envíos alcanzado. Por favor espera un momento antes de intentar de nuevo.',
 });
 
 // ── API routes ────────────────────────────────────────────────────────────

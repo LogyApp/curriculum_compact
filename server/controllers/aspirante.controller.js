@@ -324,7 +324,7 @@ export async function registrarHV(req, res) {
         // Run all other inserts in parallel
         await Promise.all(insertions);
 
-        // Hijos: sequential awaited inserts — simpler and more reliable than batch+.catch()
+        // Hijos: sequential awaited inserts
         for (const h of (d.hijos || [])) {
             const nombre = sanitizeStr(h.nombre_completo);
             if (!nombre) continue;
