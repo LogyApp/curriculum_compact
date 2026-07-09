@@ -358,17 +358,36 @@ app.get("/api/config/tipo-identificacion", async (req, res) => {
 });
 
 // ==========================================
-//  ENDPOINT: Departamentos (solo Colombia)
+//  ENDPOINT: Países
+// ==========================================
+
+app.get("/api/config/paises", async (req, res) => {
+  try {
+    const rows = await query(`
+      SELECT \`Pais\` AS pais
+      FROM Config_Paises
+      ORDER BY \`Pais\`
+    `);
+    res.json(rows);
+  } catch (error) {
+    console.error("Error países:", error);
+    res.status(500).json({ error: "Error cargando países" });
+  }
+});
+
+// ==========================================
+//  ENDPOINT: Departamentos (por país, default Colombia)
 // ==========================================
 
 app.get("/api/config/departamentos", async (req, res) => {
+  const pais = req.query.pais || "Colombia";
   try {
     const rows = await query(`
       SELECT \`Departamento\` AS departamento
       FROM Config_Departamentos
-      WHERE \`País\` = 'Colombia'
+      WHERE \`País\` = ?
       ORDER BY \`Departamento\`
-    `);
+    `, [pais]);
     res.json(rows);
   } catch (error) {
     console.error("Error departamentos:", error);
@@ -377,11 +396,12 @@ app.get("/api/config/departamentos", async (req, res) => {
 });
 
 // ==========================================
-//  ENDPOINT: Ciudades por departamento
+//  ENDPOINT: Ciudades por departamento (por país, default Colombia)
 // ==========================================
 
 app.get("/api/config/ciudades", async (req, res) => {
   const departamento = req.query.departamento;
+  const pais = req.query.pais || "Colombia";
 
   if (!departamento) {
     return res.status(400).json({ error: "Falta el parámetro 'departamento'" });
@@ -391,9 +411,9 @@ app.get("/api/config/ciudades", async (req, res) => {
     const rows = await query(`
       SELECT \`Ciudad\` AS ciudad
       FROM Config_Ciudades
-      WHERE \`Departamento\` = ? AND \`Pais\` = 'Colombia'
+      WHERE \`Departamento\` = ? AND \`Pais\` = ?
       ORDER BY \`Ciudad\`
-    `, [departamento]);
+    `, [departamento, pais]);
 
     res.json(rows);
   } catch (error) {

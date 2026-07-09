@@ -37,5 +37,5 @@ COPY . .
 ENV PORT=8080
 EXPOSE 8080
 
-# Ejecutar servidor
-CMD ["node", "server.js"]
+# Ejecutar servidor (backend modular)
+CMD ["node", "server/app.js"]
