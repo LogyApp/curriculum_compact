@@ -166,6 +166,9 @@ export async function registrarHV(req, res) {
         const segundoNombre = sanitizeStr(d.segundo_nombre);
         const primerApellido = sanitizeStr(d.primer_apellido);
         const segundoApellido = sanitizeStr(d.segundo_apellido);
+        const paisNac = sanitizeStr(d.pais_nacimiento);
+        const deptoNac = sanitizeStr(d.departamento_nacimiento);
+        const ciudadNac = sanitizeStr(d.ciudad_nacimiento);
         const fechaNac = formatDate(d.fecha_nacimiento);
         const edad = safeInt(d.edad);
         const deptoExp = sanitizeStr(d.departamento_expedicion);
@@ -195,7 +198,7 @@ export async function registrarHV(req, res) {
         }
 
         // Check existing
-        const [[existing]] = await conn.query('SELECT id_aspirante, pdf_gcs_path FROM Dynamic_hv_aspirante WHERE identificacion = ? LIMIT 1', [id]);
+        const [[existing]] = await conn.query('SELECT id_aspirante, pdf_gcs_path, firma_url FROM Dynamic_hv_aspirante WHERE identificacion = ? LIMIT 1', [id]);
         const isNew = !existing;
         let aspiranteId;
 
@@ -203,13 +206,15 @@ export async function registrarHV(req, res) {
             const [insertResult] = await conn.query(
                 `INSERT INTO Dynamic_hv_aspirante
                  (tipo_documento, identificacion, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido,
+                  pais_nacimiento, departamento_nacimiento, ciudad_nacimiento,
                   fecha_nacimiento, edad, departamento_expedicion, ciudad_expedicion, fecha_expedicion, estado_civil,
                   direccion_barrio, departamento, ciudad, telefono, correo_electronico, eps, afp, rh,
                   talla_pantalon, camisa_talla, zapatos_talla, foto_gcs_path, foto_public_url,
                   origen_registro, medio_reclutamiento, recomendador_aspirante,
                   acepta_politica_privacidad, fecha_aceptacion_privacidad, fecha_registro)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())`,
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())`,
                 [tipo, id, primerNombre, segundoNombre, primerApellido, segundoApellido,
+                    paisNac, deptoNac, ciudadNac,
                     fechaNac, edad, deptoExp, ciudadExp, fechaExp, estadoCivil,
                     direccion, depto, ciudad, telefono, correo, eps, afp, rh,
                     tallaPant, tallaCam, tallaZap, fotoPath || null, fotoUrl || null,
@@ -236,6 +241,7 @@ export async function registrarHV(req, res) {
             await conn.query(
                 `UPDATE Dynamic_hv_aspirante SET
                   tipo_documento=?, primer_nombre=?, segundo_nombre=?, primer_apellido=?, segundo_apellido=?,
+                  pais_nacimiento=?, departamento_nacimiento=?, ciudad_nacimiento=?,
                   fecha_nacimiento=?, edad=?, departamento_expedicion=?, ciudad_expedicion=?, fecha_expedicion=?,
                   estado_civil=?, direccion_barrio=?, departamento=?, ciudad=?, telefono=?, correo_electronico=?,
                   eps=?, afp=?, rh=?, talla_pantalon=?, camisa_talla=?, zapatos_talla=?,
@@ -247,6 +253,7 @@ export async function registrarHV(req, res) {
                   fecha_actualizacion=NOW()
                  WHERE id_aspirante=?`,
                 [tipo, primerNombre, segundoNombre, primerApellido, segundoApellido,
+                    paisNac, deptoNac, ciudadNac,
                     fechaNac, edad, deptoExp, ciudadExp, fechaExp,
                     estadoCivil, direccion, depto, ciudad, telefono, correo,
                     eps, afp, rh, tallaPant, tallaCam, tallaZap,
@@ -345,14 +352,16 @@ export async function registrarHV(req, res) {
         await conn.commit();
 
         // ── Firma upload — runs after commit so it never blocks the transaction ──
+        // Defaults to the signature already on file (returning user who didn't redraw it).
+        let firmaUrlFinal = existing?.firma_url || null;
         if (d.firma_base64 && bucketFirmas) {
             try {
                 const base64Data = d.firma_base64.replace(/^data:image\/\w+;base64,/, '');
                 const buffer     = Buffer.from(base64Data, 'base64');
                 const firmaPath  = `${id}/firma.png`;
                 await bucketFirmas.file(firmaPath).save(buffer, { contentType: 'image/png', resumable: false });
-                const firmaUrl = `https://storage.googleapis.com/${GCS_BUCKET_FIRMAS}/${firmaPath}`;
-                await query('UPDATE Dynamic_hv_aspirante SET firma_url = ? WHERE id_aspirante = ?', [firmaUrl, aspiranteId]);
+                firmaUrlFinal = `https://storage.googleapis.com/${GCS_BUCKET_FIRMAS}/${firmaPath}`;
+                await query('UPDATE Dynamic_hv_aspirante SET firma_url = ? WHERE id_aspirante = ?', [firmaUrlFinal, aspiranteId]);
             } catch (firmaErr) {
                 console.warn('[aspirante] Signature upload failed:', firmaErr.message);
             }
@@ -361,7 +370,7 @@ export async function registrarHV(req, res) {
         // Post-commit: generate PDF and send email (async, don't block response)
         setImmediate(async () => {
             try {
-                const fullData = { ...req.body, identificacion: id };
+                const fullData = { ...req.body, identificacion: id, firma_url: firmaUrlFinal };
                 const { destName, publicUrl } = await generateAndUploadPdf(fullData);
 
                 await query('UPDATE Dynamic_hv_aspirante SET pdf_gcs_path = ?, pdf_public_url = ? WHERE identificacion = ?', [destName, publicUrl, id]);

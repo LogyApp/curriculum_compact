@@ -24,11 +24,26 @@ export async function getTipoIdentificacion(req, res) {
     }
 }
 
-export async function getDepartamentos(req, res) {
+export async function getPaises(req, res) {
     try {
         const data = await cachedGet(
-            'departamentos',
-            () => query("SELECT `Departamento` AS departamento FROM Config_Departamentos WHERE `País` = 'Colombia' ORDER BY `Departamento`"),
+            'paises',
+            () => query('SELECT `Pais` AS pais FROM Config_Paises ORDER BY `Pais`'),
+            TTL
+        );
+        res.json(data);
+    } catch (err) {
+        console.error('[config] getPaises:', err.message);
+        res.status(500).json({ error: 'Error cargando países' });
+    }
+}
+
+export async function getDepartamentos(req, res) {
+    const pais = req.query.pais || 'Colombia';
+    try {
+        const data = await cachedGet(
+            `departamentos:${pais}`,
+            () => query("SELECT `Departamento` AS departamento FROM Config_Departamentos WHERE `País` = ? ORDER BY `Departamento`", [pais]),
             TTL
         );
         res.json(data);
@@ -40,11 +55,12 @@ export async function getDepartamentos(req, res) {
 
 export async function getCiudades(req, res) {
     const { departamento } = req.query;
+    const pais = req.query.pais || 'Colombia';
     if (!departamento) return res.status(400).json({ error: 'Parámetro departamento requerido' });
     try {
         const data = await cachedGet(
-            `ciudades:${departamento}`,
-            () => query("SELECT `Ciudad` AS ciudad FROM Config_Ciudades WHERE `Departamento` = ? AND `Pais` = 'Colombia' ORDER BY `Ciudad`", [departamento]),
+            `ciudades:${pais}:${departamento}`,
+            () => query("SELECT `Ciudad` AS ciudad FROM Config_Ciudades WHERE `Departamento` = ? AND `Pais` = ? ORDER BY `Ciudad`", [departamento, pais]),
             TTL
         );
         res.json(data);

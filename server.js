@@ -99,11 +99,11 @@ try {
     // 1. Inicializamos los objetos de bucket SIEMPRE
     bucket = storageGcs.bucket(GCS_BUCKET);
     const GCS_BUCKET_FIRMAS = process.env.GCS_BUCKET_FIRMAS || 'firmas-images';
-    bucketFirmas = storageGcs.bucket(GCS_BUCKET_FIRMAS); 
-    
+    bucketFirmas = storageGcs.bucket(GCS_BUCKET_FIRMAS);
+
     console.log(`✅ Objetos de bucket creados: ${GCS_BUCKET} y ${GCS_BUCKET_FIRMAS}`);
 
-   // ✅ NO uses await aquí (top-level). Solo loguea y sigue.
+    // ✅ NO uses await aquí (top-level). Solo loguea y sigue.
     console.log(`ℹ️ Usando bucket configurado: ${GCS_BUCKET}. Se intentará operar sin verificación previa.`);
   }
 
@@ -739,6 +739,9 @@ app.post("/api/hv/registrar", async (req, res) => {
     segundo_nombre,
     primer_apellido,
     segundo_apellido,
+    pais_nacimiento,
+    departamento_nacimiento,
+    ciudad_nacimiento,
     fecha_nacimiento,
     edad,
     departamento_expedicion,
@@ -874,6 +877,9 @@ app.post("/api/hv/registrar", async (req, res) => {
           segundo_nombre = ?,
           primer_apellido = ?,
           segundo_apellido = ?,
+          pais_nacimiento = ?,
+          departamento_nacimiento = ?,
+          ciudad_nacimiento = ?,
           fecha_nacimiento = ?,
           edad = ?,
           departamento_expedicion = ?,
@@ -906,6 +912,9 @@ app.post("/api/hv/registrar", async (req, res) => {
         segundo_nombre || null,
         primer_apellido || null,
         segundo_apellido || null,
+        pais_nacimiento || null,
+        departamento_nacimiento || null,
+        ciudad_nacimiento || null,
         fecha_nacimiento || null,
         edad || null,
         departamento_expedicion || null,
@@ -913,8 +922,8 @@ app.post("/api/hv/registrar", async (req, res) => {
         fecha_expedicion || null,
         estado_civil || null,
         direccion_barrio || null,
-        departamento_residencia || null, 
-        ciudad_residencia || null, 
+        departamento_residencia || null,
+        ciudad_residencia || null,
         telefono || null,
         correo_electronico || null,
         eps || null,
@@ -963,6 +972,9 @@ app.post("/api/hv/registrar", async (req, res) => {
           segundo_nombre,
           primer_apellido,
           segundo_apellido,
+          pais_nacimiento,
+          departamento_nacimiento,
+          ciudad_nacimiento,
           fecha_nacimiento,
           edad,
           departamento_expedicion,
@@ -970,8 +982,8 @@ app.post("/api/hv/registrar", async (req, res) => {
           fecha_expedicion,
           estado_civil,
           direccion_barrio,
-          departamento, 
-          ciudad,  
+          departamento,
+          ciudad,
           telefono,
           correo_electronico,
           eps,
@@ -987,7 +999,7 @@ app.post("/api/hv/registrar", async (req, res) => {
           recomendador_aspirante,
           fecha_registro
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
       const insertParams = [
@@ -997,6 +1009,9 @@ app.post("/api/hv/registrar", async (req, res) => {
         segundo_nombre || null,
         primer_apellido || null,
         segundo_apellido || null,
+        pais_nacimiento || null,
+        departamento_nacimiento || null,
+        ciudad_nacimiento || null,
         fecha_nacimiento || null,
         edad || null,
         departamento_expedicion || null,
@@ -1291,7 +1306,7 @@ app.post("/api/hv/registrar", async (req, res) => {
     } else {
       console.log(`ℹ️ Seguridad: Sin registro`);
     }
-   
+
     // ========== 6. CONSTRUIR DATOS PARA EL PDF ==========
     console.log(`📊 Preparando datos para PDF...`);
 
@@ -1331,9 +1346,9 @@ app.post("/api/hv/registrar", async (req, res) => {
         const tipoRaw = (r.tipo_referencia || "").toLowerCase();
         const tipo =
           tipoRaw.includes("laboral") ? "Referencia laboral" :
-          tipoRaw.includes("familiar") ? "Referencia familiar" :
-          tipoRaw.includes("personal") ? "Referencia personal" :
-          "Referencia";
+            tipoRaw.includes("familiar") ? "Referencia familiar" :
+              tipoRaw.includes("personal") ? "Referencia personal" :
+                "Referencia";
 
         if (tipoRaw.includes("laboral")) {
           return `<div><strong>${escapeHtml(tipo)}:</strong> ${escapeHtml(r.empresa || "-")} — ${escapeHtml(r.jefe_inmediato || "-")} (${escapeHtml(r.telefono || "-")})</div>`;
@@ -1385,6 +1400,7 @@ app.post("/api/hv/registrar", async (req, res) => {
       CORREO: escapeHtml(correo_electronico || ""),
       DIRECCION: escapeHtml(direccion_barrio || ""),
       FECHA_NACIMIENTO: escapeHtml(fecha_nacimiento || ""),
+      LUGAR_NACIMIENTO: escapeHtml([ciudad_nacimiento, departamento_nacimiento, pais_nacimiento].filter(Boolean).join(" — ")),
       FECHA_EXPEDICION: escapeHtml(fecha_expedicion || ""),
       ESTADO_CIVIL: escapeHtml(estado_civil || ""),
       EPS: escapeHtml(eps || ""),
@@ -1520,7 +1536,7 @@ app.post("/api/hv/registrar", async (req, res) => {
         // NUEVO: Registro en Dynamic_hv_documentos (Config 30)
         // ==========================================================
         console.log(`📄 Registrando en Dynamic_hv_documentos para: ${identificacion}`);
-        
+
         await pool.query(
           `INSERT INTO Dynamic_hv_documentos 
             (id_aspirante, id_config_doc, gcs_path, estado, fuente, observaciones)

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
     getTipoIdentificacion,
+    getPaises,
     getDepartamentos,
     getCiudades,
     getEPS,
@@ -11,6 +12,7 @@ import {
 const router = Router();
 
 router.get('/tipo-identificacion', getTipoIdentificacion);
+router.get('/paises', getPaises);
 router.get('/departamentos', getDepartamentos);
 router.get('/ciudades', getCiudades);
 router.get('/eps', getEPS);

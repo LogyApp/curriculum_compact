@@ -58,6 +58,25 @@ async function rellenarFormulario(a) {
             }
         }
 
+        if (aspirante?.pais_nacimiento) {
+            set('pais_nacimiento', aspirante.pais_nacimiento);
+            const tieneCatalogo = typeof PAISES_CON_CATALOGO !== 'undefined' && PAISES_CON_CATALOGO.includes(aspirante.pais_nacimiento);
+            document.getElementById('wrap-departamento_nacimiento')?.classList.toggle('hidden', !tieneCatalogo);
+            document.getElementById('wrap-ciudad_nacimiento')?.classList.toggle('hidden', !tieneCatalogo);
+            if (tieneCatalogo) {
+                document.getElementById('departamento_nacimiento')?.setAttribute('data-required', 'true');
+                document.getElementById('ciudad_nacimiento')?.setAttribute('data-required', 'true');
+                if (typeof cargarDepartamentosPorPais === 'function') {
+                    await cargarDepartamentosPorPais(aspirante.pais_nacimiento, 'departamento_nacimiento');
+                    set('departamento_nacimiento', aspirante.departamento_nacimiento || '');
+                    if (typeof cargarCiudades === 'function') {
+                        await cargarCiudades('departamento_nacimiento', 'ciudad_nacimiento', aspirante.pais_nacimiento);
+                        set('ciudad_nacimiento', aspirante.ciudad_nacimiento || '');
+                    }
+                }
+            }
+        }
+
         if (aspirante?.departamento_expedicion) {
             set('departamento_expedicion', aspirante.departamento_expedicion);
             if (typeof cargarCiudades === 'function') {
@@ -362,10 +381,14 @@ function resetFormToInitialState() {
 
         document.getElementById('hv-form')?.reset();
 
-        ['ciudad_expedicion', 'ciudad_residencia'].forEach(id => {
+        ['ciudad_expedicion', 'ciudad_residencia', 'departamento_nacimiento', 'ciudad_nacimiento'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.innerHTML = '<option value="">Selecciona...</option>';
         });
+        document.getElementById('wrap-departamento_nacimiento')?.classList.add('hidden');
+        document.getElementById('wrap-ciudad_nacimiento')?.classList.add('hidden');
+        document.getElementById('departamento_nacimiento')?.removeAttribute('data-required');
+        document.getElementById('ciudad_nacimiento')?.removeAttribute('data-required');
 
         educacionData = [{ institucion: '', programa: '', nivel_escolaridad: '', modalidad: '', ano: '', finalizado: '1' }];
         expData = [{ empresa: '', cargo: '', ano_experiencia: '', tiempo_laborado: '', salario: '', motivo_retiro: '', funciones: '' }];

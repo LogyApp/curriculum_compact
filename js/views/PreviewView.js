@@ -15,6 +15,7 @@ function buildPreview() {
 
     const nombreCompleto = [v('primer_nombre'), v('segundo_nombre'), v('primer_apellido'), v('segundo_apellido')].filter(Boolean).join(' ');
     const ciudadResid = [v('ciudad_residencia'), v('departamento_residencia')].filter(Boolean).join(' — ');
+    const lugarNacimiento = [v('ciudad_nacimiento'), v('departamento_nacimiento'), v('pais_nacimiento')].filter(Boolean).join(' — ');
     const fotoUrl = (document.getElementById('hidden_foto_public_url')?.value || '').trim();
 
     const renderLista = (items, fn, empty = 'No registrado') => {
@@ -47,6 +48,7 @@ function buildPreview() {
         ${row('Nombre completo', nombreCompleto)}
         ${row('Identificación', v('identificacion'))}
         ${row('Fecha nacimiento', v('fecha_nacimiento'))}
+        ${row('Lugar de nacimiento', lugarNacimiento)}
         ${row('Edad', v('edad'))}
         ${row('Ciudad residencia', ciudadResid)}
         ${row('Teléfono', v('telefono'))}

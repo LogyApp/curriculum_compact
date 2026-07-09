@@ -398,6 +398,37 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('departamento_expedicion')?.addEventListener('change', () => cargarCiudades('departamento_expedicion', 'ciudad_expedicion'));
     document.getElementById('departamento_residencia')?.addEventListener('change', () => cargarCiudades('departamento_residencia', 'ciudad_residencia'));
 
+    // País de nacimiento → mostrar/ocultar depto y ciudad de nacimiento
+    // (solo Colombia y Venezuela tienen catálogo de departamentos/ciudades)
+    document.getElementById('pais_nacimiento')?.addEventListener('change', function () {
+        const pais = this.value;
+        const wrapDepto = document.getElementById('wrap-departamento_nacimiento');
+        const wrapCiudad = document.getElementById('wrap-ciudad_nacimiento');
+        const deptoSel = document.getElementById('departamento_nacimiento');
+        const ciudadSel = document.getElementById('ciudad_nacimiento');
+        const tieneCatalogo = PAISES_CON_CATALOGO.includes(pais);
+
+        wrapDepto?.classList.toggle('hidden', !tieneCatalogo);
+        wrapCiudad?.classList.toggle('hidden', !tieneCatalogo);
+
+        if (tieneCatalogo) {
+            deptoSel?.setAttribute('data-required', 'true');
+            ciudadSel?.setAttribute('data-required', 'true');
+            cargarDepartamentosPorPais(pais, 'departamento_nacimiento');
+            if (ciudadSel) ciudadSel.innerHTML = '<option value="">Selecciona...</option>';
+        } else {
+            deptoSel?.removeAttribute('data-required');
+            ciudadSel?.removeAttribute('data-required');
+            if (deptoSel) { deptoSel.value = ''; deptoSel.innerHTML = '<option value="">Selecciona...</option>'; deptoSel.classList.remove('error'); }
+            if (ciudadSel) { ciudadSel.value = ''; ciudadSel.innerHTML = '<option value="">Selecciona...</option>'; ciudadSel.classList.remove('error'); }
+            document.getElementById('error-departamento_nacimiento').textContent = '';
+            document.getElementById('error-ciudad_nacimiento').textContent = '';
+        }
+    });
+    document.getElementById('departamento_nacimiento')?.addEventListener('change', function () {
+        cargarCiudades('departamento_nacimiento', 'ciudad_nacimiento', document.getElementById('pais_nacimiento')?.value || 'Colombia');
+    });
+
     // Medio de reclutamiento → show/hide recomendador
     const medioSelect = document.getElementById('medio_reclutamiento');
     if (medioSelect) {

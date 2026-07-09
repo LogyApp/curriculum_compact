@@ -65,6 +65,60 @@ async function cargarTiposPaso0() {
     return cargarTipoIdentificacion();
 }
 
+/* ── Países ─────────────────────────────────────────────────────────────── */
+async function cargarPaises() {
+    try {
+        const data = await fetchWithTimeout(`${API_CONFIG_URL}/paises`);
+        if (!Array.isArray(data)) return;
+        const select = document.getElementById('pais_nacimiento');
+        if (!select) return;
+        select.innerHTML = '<option value="">Selecciona...</option>';
+        data.forEach(item => {
+            const pais = item.pais || item.nombre || item;
+            if (!pais) return;
+            const opt = document.createElement('option');
+            opt.value = pais; opt.textContent = pais;
+            // Colombia viene instanciada por defecto (~99% de los aspirantes)
+            if (pais === 'Colombia') opt.selected = true;
+            select.appendChild(opt);
+        });
+    } catch (err) {
+        console.error('Error cargando países:', err);
+        const el = document.getElementById('pais_nacimiento');
+        if (el) el.innerHTML = '<option value="">Error al cargar</option>';
+    }
+}
+
+/* ── Departamentos por país (usado para lugar de nacimiento) ───────────── */
+// Países con catálogo de departamentos/ciudades en la base de datos.
+const PAISES_CON_CATALOGO = ['Colombia', 'Venezuela'];
+
+async function cargarDepartamentosPorPais(pais, selectId) {
+    const selectEl = document.getElementById(selectId);
+    if (!selectEl) return;
+    if (!pais) {
+        selectEl.innerHTML = '<option value="">Selecciona...</option>';
+        return;
+    }
+    selectEl.innerHTML = '<option value="">Cargando...</option>';
+    try {
+        const data = await fetchWithTimeout(`${API_CONFIG_URL}/departamentos?pais=${encodeURIComponent(pais)}`);
+        selectEl.innerHTML = '<option value="">Selecciona...</option>';
+        if (Array.isArray(data)) {
+            data.forEach(item => {
+                const dep = item.departamento || item.nombre || item;
+                if (!dep) return;
+                const opt = document.createElement('option');
+                opt.value = dep; opt.textContent = dep;
+                selectEl.appendChild(opt);
+            });
+        }
+    } catch (err) {
+        console.error(`Error cargando departamentos de ${pais}:`, err);
+        selectEl.innerHTML = '<option value="">Error al cargar</option>';
+    }
+}
+
 /* ── Departamentos ──────────────────────────────────────────────────────── */
 async function cargarDepartamentos() {
     try {
@@ -99,7 +153,7 @@ async function cargarDepartamentos() {
 }
 
 /* ── Ciudades ───────────────────────────────────────────────────────────── */
-async function cargarCiudades(selectDepartamentoId, selectCiudadId) {
+async function cargarCiudades(selectDepartamentoId, selectCiudadId, pais = 'Colombia') {
     const depEl = document.getElementById(selectDepartamentoId);
     const ciudadEl = document.getElementById(selectCiudadId);
     if (!depEl || !ciudadEl) return;
@@ -115,7 +169,7 @@ async function cargarCiudades(selectDepartamentoId, selectCiudadId) {
     }
 
     try {
-        const data = await fetchWithTimeout(`${API_CONFIG_URL}/ciudades?departamento=${encodeURIComponent(dep)}`);
+        const data = await fetchWithTimeout(`${API_CONFIG_URL}/ciudades?departamento=${encodeURIComponent(dep)}&pais=${encodeURIComponent(pais)}`);
         ciudadEl.innerHTML = '<option value="">Selecciona...</option>';
         if (Array.isArray(data)) {
             data.forEach(item => {
@@ -206,6 +260,7 @@ async function inicializarSelects() {
     try {
         await Promise.all([
             cargarTipoIdentificacion(),
+            cargarPaises(),
             cargarDepartamentos(),
             cargarEPS(),
             cargarPension(),
