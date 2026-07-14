@@ -1507,21 +1507,41 @@ app.post("/api/hv/registrar", async (req, res) => {
       }
     }
 
-    // ========== 8. GENERAR Y SUBIR PDF (FUERA DE LA TRANSACCIÓN) ==========
-    let pdfResult = null;
-    let pdfUrl = null;
-    let pdfError = null;
+    // ========== 8. RESPONDER AL CLIENTE (no se espera el PDF) ==========
+    // El registro ya está guardado y confirmado — responder de inmediato.
+    // El PDF puede tardar más de lo que un usuario debería esperar frente al
+    // formulario, así que se genera después, en segundo plano, sin límite de
+    // tiempo que pueda abandonar el guardado de su URL a mitad de camino.
+    const respuesta = {
+      ok: true,
+      message: "Hoja de vida registrada correctamente. El PDF se está generando y llegará por correo en unos minutos.",
+      id_aspirante: idAspirante,
+      identificacion: identificacion,
+      datos_guardados: true,
+      pdf_status: "processing"
+    };
 
-    console.log(`🔄 Intentando generar PDF para: ${identificacion}`);
+    console.log(`📤 Respondiendo al cliente exitosamente para: ${identificacion}`);
+    res.json(respuesta);
 
-    if (!bucket) {
-      console.warn("⚠️ Bucket no disponible, omitiendo generación de PDF");
-      pdfError = "Bucket no configurado";
-    } else {
+    // ========== 9. GENERAR PDF Y ENVIAR CORREO (SEGUNDO PLANO, POST-RESPUESTA) ==========
+    setImmediate(async () => {
+      let pdfResult = null;
+      let pdfUrl = null;
+
+      console.log(`🔄 Generando PDF en segundo plano para: ${identificacion}`);
+
+      if (!bucket) {
+        console.warn("⚠️ Bucket no disponible, omitiendo generación de PDF");
+        return;
+      }
+
       try {
         console.log(`📁 Bucket disponible: ${GCS_BUCKET}`);
 
-        const pdfPromise = generateAndUploadPdf({
+        // Sin timeout/carrera: se espera lo que haga falta para no perder
+        // la referencia del archivo que de todas formas ya se sube al bucket.
+        pdfResult = await generateAndUploadPdf({
           identificacion,
           dataObjects: aspiranteData,
           idHv: idAspirante,
@@ -1529,15 +1549,6 @@ app.post("/api/hv/registrar", async (req, res) => {
           bucketName: GCS_BUCKET,
           deleteOldFiles: true
         });
-
-
-
-        // Timeout de 60 segundos
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('TIMEOUT_GENERANDO_PDF')), 60000)
-        );
-
-        pdfResult = await Promise.race([pdfPromise, timeoutPromise]);
         pdfUrl = pdfResult.publicUrl;
 
         console.log(`✅ PDF generado exitosamente:`);
@@ -1546,7 +1557,7 @@ app.post("/api/hv/registrar", async (req, res) => {
 
         // Actualizar BD con la nueva URL del PDF
         await pool.query(
-          `UPDATE Dynamic_hv_aspirante SET 
+          `UPDATE Dynamic_hv_aspirante SET
             pdf_gcs_path = ?,
             pdf_public_url = ?
           WHERE identificacion = ?`,
@@ -1558,7 +1569,7 @@ app.post("/api/hv/registrar", async (req, res) => {
         console.log(`📄 Registrando en Dynamic_hv_documentos para: ${identificacion}`);
 
         await pool.query(
-          `INSERT INTO Dynamic_hv_documentos 
+          `INSERT INTO Dynamic_hv_documentos
             (id_aspirante, id_config_doc, gcs_path, estado, fuente, observaciones)
           VALUES (?, ?, ?, ?, ?, NULL)`,
           [idAspirante, 30, pdfResult.destName, 'Aprobado', 'Sistema']
@@ -1569,64 +1580,33 @@ app.post("/api/hv/registrar", async (req, res) => {
       } catch (pdfGenError) {
         console.error(`❌ Error generando PDF: ${pdfGenError.message}`);
         console.error(`❌ Stack trace PDF:`, pdfGenError.stack);
-        pdfError = pdfGenError.message;
-
-        console.log(`⚠️ Continuando sin PDF generado. Datos del aspirante guardados en BD.`);
+        console.log(`⚠️ Continuando sin PDF generado. Datos del aspirante ya estaban guardados en BD.`);
+        return;
       }
-    }
 
-    // ========== 9. ENVIAR CORREO (ASINCRÓNICO) ==========
-    if (pdfUrl) {
+      // ── Enviar correo (solo si el PDF sí se generó) ──────────────────────
+      if (!correo_electronico) return;
 
       const esNuevoParaCorreo = Boolean(esNuevoRegistro);
-
       console.log(`📧 Enviando correo con estado: ${esNuevoParaCorreo ? 'NUEVO' : 'ACTUALIZACIÓN'}`);
-      // Enviar en segundo plano
-      setTimeout(async () => {
-        try {
-          const sendEmailModule = await import('./send-to-email.js');
-          await sendEmailModule.default({
-            nombre: `${primer_nombre} ${primer_apellido}`.trim(),
-            identificacion,
-            correo: correo_electronico,
-            telefono,
-            pdf_url: pdfUrl,
-            timestamp: new Date().toLocaleString('es-CO'),
-            esNuevo: esNuevoParaCorreo
-          });
-          console.log("✅ Correo enviado exitosamente");
-        } catch (emailError) {
-          console.error("⚠️ Error enviando correo:", emailError.message);
-        }
-      }, 1000);
-    } else if (correo_electronico) {
-      console.log("⚠️ No hay URL de PDF, omitiendo envío de correo");
-    }
-
-    // ========== 10. RESPONDER AL CLIENTE ==========
-    const respuesta = {
-      ok: true,
-      message: "Hoja de vida registrada correctamente",
-      id_aspirante: idAspirante,
-      identificacion: identificacion,
-      datos_guardados: true
-    };
-
-    // Agregar información del PDF
-    if (pdfUrl) {
-      respuesta.pdf_generado = true;
-      respuesta.pdf_url = pdfUrl;
-      respuesta.pdf_ruta = pdfResult?.destName;
-    } else {
-      respuesta.pdf_generado = false;
-      if (pdfError) {
-        respuesta.pdf_error = pdfError;
-        respuesta.message = "Hoja de vida registrada, pero hubo un error generando el PDF";
+      try {
+        const sendEmailModule = await import('./send-to-email.js');
+        await sendEmailModule.default({
+          nombre: `${primer_nombre} ${primer_apellido}`.trim(),
+          identificacion,
+          correo: correo_electronico,
+          telefono,
+          pdf_url: pdfUrl,
+          timestamp: new Date().toLocaleString('es-CO'),
+          esNuevo: esNuevoParaCorreo
+        });
+        console.log("✅ Correo enviado exitosamente");
+      } catch (emailError) {
+        console.error("⚠️ Error enviando correo:", emailError.message);
       }
-    }
+    });
 
-    console.log(`📤 Respondiendo al cliente exitosamente para: ${identificacion}`);
-    return res.json(respuesta);
+    return;
 
   } catch (error) {
     console.error("❌ Error registrando HV:", error);
