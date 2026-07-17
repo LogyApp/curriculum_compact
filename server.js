@@ -1507,40 +1507,26 @@ app.post("/api/hv/registrar", async (req, res) => {
       }
     }
 
-    // ========== 8. RESPONDER AL CLIENTE (no se espera el PDF) ==========
-    // El registro ya está guardado y confirmado — responder de inmediato.
-    // El PDF puede tardar más de lo que un usuario debería esperar frente al
-    // formulario, así que se genera después, en segundo plano, sin límite de
-    // tiempo que pueda abandonar el guardado de su URL a mitad de camino.
-    const respuesta = {
-      ok: true,
-      message: "Hoja de vida registrada correctamente. El PDF se está generando y llegará por correo en unos minutos.",
-      id_aspirante: idAspirante,
-      identificacion: identificacion,
-      datos_guardados: true,
-      pdf_status: "processing"
-    };
+    // ========== 8. GENERAR Y SUBIR PDF (DENTRO DEL CICLO DE LA PETICIÓN) ==========
+    // IMPORTANTE: Cloud Run solo garantiza CPU a la instancia mientras hay una
+    // petición HTTP activa (salvo que el servicio tenga "CPU always allocated").
+    // Generar el PDF DESPUÉS de responder (setImmediate/segundo plano) hace que
+    // Cloud Run le quite el CPU a la instancia apenas se envía la respuesta,
+    // abortando la generación casi siempre. Por eso esto se espera aquí, ANTES
+    // de responder — sin timeout/carrera artificial que abandone el guardado.
+    let pdfResult = null;
+    let pdfUrl = null;
+    let pdfError = null;
 
-    console.log(`📤 Respondiendo al cliente exitosamente para: ${identificacion}`);
-    res.json(respuesta);
+    console.log(`🔄 Generando PDF para: ${identificacion}`);
 
-    // ========== 9. GENERAR PDF Y ENVIAR CORREO (SEGUNDO PLANO, POST-RESPUESTA) ==========
-    setImmediate(async () => {
-      let pdfResult = null;
-      let pdfUrl = null;
-
-      console.log(`🔄 Generando PDF en segundo plano para: ${identificacion}`);
-
-      if (!bucket) {
-        console.warn("⚠️ Bucket no disponible, omitiendo generación de PDF");
-        return;
-      }
-
+    if (!bucket) {
+      console.warn("⚠️ Bucket no disponible, omitiendo generación de PDF");
+      pdfError = "Bucket no configurado";
+    } else {
       try {
         console.log(`📁 Bucket disponible: ${GCS_BUCKET}`);
 
-        // Sin timeout/carrera: se espera lo que haga falta para no perder
-        // la referencia del archivo que de todas formas ya se sube al bucket.
         pdfResult = await generateAndUploadPdf({
           identificacion,
           dataObjects: aspiranteData,
@@ -1580,33 +1566,50 @@ app.post("/api/hv/registrar", async (req, res) => {
       } catch (pdfGenError) {
         console.error(`❌ Error generando PDF: ${pdfGenError.message}`);
         console.error(`❌ Stack trace PDF:`, pdfGenError.stack);
-        console.log(`⚠️ Continuando sin PDF generado. Datos del aspirante ya estaban guardados en BD.`);
-        return;
+        pdfError = pdfGenError.message;
+        console.log(`⚠️ Continuando sin PDF generado. Datos del aspirante ya están guardados en BD.`);
       }
+    }
 
-      // ── Enviar correo (solo si el PDF sí se generó) ──────────────────────
-      if (!correo_electronico) return;
-
+    // ========== 9. ENVIAR CORREO (fire-and-forget, tarea liviana) ==========
+    if (pdfUrl && correo_electronico) {
       const esNuevoParaCorreo = Boolean(esNuevoRegistro);
       console.log(`📧 Enviando correo con estado: ${esNuevoParaCorreo ? 'NUEVO' : 'ACTUALIZACIÓN'}`);
-      try {
-        const sendEmailModule = await import('./send-to-email.js');
-        await sendEmailModule.default({
-          nombre: `${primer_nombre} ${primer_apellido}`.trim(),
-          identificacion,
-          correo: correo_electronico,
-          telefono,
-          pdf_url: pdfUrl,
-          timestamp: new Date().toLocaleString('es-CO'),
-          esNuevo: esNuevoParaCorreo
-        });
-        console.log("✅ Correo enviado exitosamente");
-      } catch (emailError) {
-        console.error("⚠️ Error enviando correo:", emailError.message);
-      }
-    });
+      setTimeout(async () => {
+        try {
+          const sendEmailModule = await import('./send-to-email.js');
+          await sendEmailModule.default({
+            nombre: `${primer_nombre} ${primer_apellido}`.trim(),
+            identificacion,
+            correo: correo_electronico,
+            telefono,
+            pdf_url: pdfUrl,
+            timestamp: new Date().toLocaleString('es-CO'),
+            esNuevo: esNuevoParaCorreo
+          });
+          console.log("✅ Correo enviado exitosamente");
+        } catch (emailError) {
+          console.error("⚠️ Error enviando correo:", emailError.message);
+        }
+      }, 0);
+    }
 
-    return;
+    // ========== 10. RESPONDER AL CLIENTE ==========
+    const respuesta = {
+      ok: true,
+      message: pdfUrl
+        ? "Hoja de vida registrada correctamente"
+        : "Hoja de vida registrada, pero hubo un error generando el PDF",
+      id_aspirante: idAspirante,
+      identificacion: identificacion,
+      datos_guardados: true,
+      pdf_generado: Boolean(pdfUrl),
+      pdf_url: pdfUrl || undefined,
+      pdf_error: pdfError || undefined
+    };
+
+    console.log(`📤 Respondiendo al cliente exitosamente para: ${identificacion}`);
+    return res.json(respuesta);
 
   } catch (error) {
     console.error("❌ Error registrando HV:", error);
